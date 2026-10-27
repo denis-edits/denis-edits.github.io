@@ -144,7 +144,8 @@ body.menu-open .mobile-menu { opacity: 1; visibility: visible; transform: none; 
 .hero-bg { position: absolute; inset: 0; z-index: -1; background: var(--bg); }
 .aurora { position: absolute; inset: 0; overflow: hidden; }
 .aurora i {
-  position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55; will-change: transform;
+  /* the radial gradients are already soft: no blur filter, which is very costly to animate on phones */
+  position: absolute; border-radius: 50%; opacity: 0.55; will-change: transform;
 }
 .aurora i:nth-child(1) { width: 60vmax; height: 60vmax; left: -12vmax; top: -18vmax; background: radial-gradient(circle, rgba(var(--accent-rgb), 0.95), transparent 65%); animation: drift1 18s ease-in-out infinite alternate; }
 .aurora i:nth-child(2) { width: 52vmax; height: 52vmax; right: -16vmax; top: 6vmax; background: radial-gradient(circle, #5b3bff, transparent 65%); opacity: 0.4; animation: drift2 23s ease-in-out infinite alternate; }
@@ -207,6 +208,13 @@ body.menu-open .mobile-menu { opacity: 1; visibility: visible; transform: none; 
 .hero-intro, .hero-actions, .hero-meta, .hero-role { animation: fadeUp 1s var(--ease) both; animation-delay: 0.9s; }
 .hero-role { animation-delay: 0.1s; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+/* hold the intro until the display font is in, so the words don't jump when it swaps */
+.fonts-wait .word-in, .fonts-wait .hero-intro, .fonts-wait .hero-actions, .fonts-wait .hero-meta, .fonts-wait .hero-role { animation-play-state: paused; }
+@media (max-width: 860px) {
+  /* phones: still grain and no backdrop blur over the moving aurora; both cost every frame */
+  .grain { inset: 0; animation: none; }
+  body .btn-ghost { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, 0.07); }
+}
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 30px;

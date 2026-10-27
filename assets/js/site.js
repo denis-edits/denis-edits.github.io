@@ -431,7 +431,13 @@
   }
   window.addEventListener('resize', scheduleFit);
   window.addEventListener('orientationchange', scheduleFit);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleFit);
+  // start the intro once the fonts are in (or after 1.5 s at most), with titles already fitted
+  const fontsIn = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  Promise.race([fontsIn, new Promise((r) => setTimeout(r, 1500))]).then(() => {
+    fitText();
+    document.documentElement.classList.remove('fonts-wait');
+  });
+  fontsIn.then(scheduleFit);
 
   /* ---------- render ---------- */
 
