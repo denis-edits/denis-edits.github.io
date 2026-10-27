@@ -29,43 +29,6 @@
   },
   "sections": [
     {
-      "id": "music-videos",
-      "title": "Music Videos",
-      "description": "Cutting to the beat: performance, narrative and everything in between.",
-      "videos": [
-        {
-          "id": "v-1730000000001",
-          "title": "OK Go - Here It Goes Again",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://www.youtube.com/watch?v=dTAAsCNK7RA",
-          "thumbnail": "",
-          "year": "2026",
-          "client": "Sample",
-          "vertical": false
-        },
-        {
-          "id": "v-1730000000002",
-          "title": "Gotye - Somebody That I Used to Know",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://youtu.be/8UVNT4wvIGY",
-          "thumbnail": "",
-          "year": "2025",
-          "client": "Sample",
-          "vertical": false
-        },
-        {
-          "id": "v-1730000000003",
-          "title": "a-ha - Take On Me",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://www.youtube.com/watch?v=djV11Xbc914",
-          "thumbnail": "",
-          "year": "2025",
-          "client": "Sample",
-          "vertical": false
-        }
-      ]
-    },
-    {
       "id": "commercials",
       "title": "Commercials",
       "description": "Thirty seconds to make a brand unforgettable.",
@@ -98,6 +61,43 @@
           "thumbnail": "",
           "year": "2024",
           "client": "Sample Brand",
+          "vertical": false
+        }
+      ]
+    },
+    {
+      "id": "music-videos",
+      "title": "Music Videos",
+      "description": "Cutting to the beat: performance, narrative and everything in between.",
+      "videos": [
+        {
+          "id": "v-1730000000001",
+          "title": "OK Go - Here It Goes Again",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=dTAAsCNK7RA",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "Sample",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000002",
+          "title": "Gotye - Somebody That I Used to Know",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://youtu.be/8UVNT4wvIGY",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000003",
+          "title": "a-ha - Take On Me",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=djV11Xbc914",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample",
           "vertical": false
         }
       ]
