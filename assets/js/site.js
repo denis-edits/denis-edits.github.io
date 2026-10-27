@@ -146,28 +146,34 @@
     });
 
     const total = sections.reduce((n, s) => n + (Array.isArray(s.videos) ? s.videos.length : 0), 0);
-    $('#hero-meta').textContent = String(sections.length).padStart(2, '0') + ' reels on the timeline  /  ' + String(total).padStart(2, '0') + ' clips';
+    const software = str(site.software).trim() || 'DaVinci Resolve';
+    $('#hero-meta').textContent = 'Edited in ' + software + '  /  ' + pad2(sections.length) + ' reels  /  ' + pad2(total) + ' clips';
+    $('#vw-title').textContent = (str(site.name) ? str(site.name) + ' - ' : '') + 'Showreel ' + new Date().getFullYear();
 
-    // Showreel button + optional looping background clip
+    // Showreel buttons (hero + transport) + optional looping background clip
     const reel = parseVideo(site.showreel);
-    const btn = $('#play-showreel');
-    btn.hidden = !str(site.showreel).trim();
+    $('#play-showreel').hidden = $('#tr-play').hidden = !str(site.showreel).trim();
 
     renderHeroMedia(reel, str(site.showreel).trim());
 
-    // Playful timecode: counts up at 24 fps
+    // Viewer timecode from 01:00:00:00 at 24 fps; the scrubber loops every 60 s
     const tc = $('#timecode');
-    if (reduceMotion) { tc.textContent = '00:00:00:00'; }
+    const fill = $('#tr-fill');
+    if (reduceMotion) { tc.textContent = toTimecode(0, true); }
     else if (!timecodeTimer) {
       const t0 = performance.now();
       timecodeTimer = setInterval(() => {
-        tc.textContent = toTimecode(Math.floor(((performance.now() - t0) / 1000) * 24));
+        const f = Math.floor(((performance.now() - t0) / 1000) * 24);
+        tc.textContent = toTimecode(f, true);
+        fill.style.width = ((f % 1440) / 1440) * 100 + '%';
       }, 1000 / 24);
     }
   }
 
   const pad2 = (n) => String(n).padStart(2, '0');
-  function toTimecode(frames) {
+  // fromHour: timelines start at 01:00:00:00, as in the NLE
+  function toTimecode(frames, fromHour) {
+    if (fromHour) frames += 3600 * 24;
     const s = Math.floor(frames / 24);
     return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s / 60) % 60) + ':' + pad2(s % 60) + ':' + pad2(frames % 24);
   }
@@ -330,9 +336,10 @@
       while (used.has(id)) id += '-x';
       used.add(id);
       const title = str(sec.title) || 'Untitled';
-      navItems.push({ label: title, target: id });
-
       const videos = Array.isArray(sec.videos) ? sec.videos : [];
+      const firstThumb = videos.map((v) => safeUrl(v.thumbnail) || parseVideo(v.url).thumb).find(Boolean) || '';
+      navItems.push({ label: title, target: id, thumb: firstThumb });
+
       const el = h('section', 'genre', null, { id, 'aria-labelledby': id + '-title' });
       el.dataset.spy = '';
 
@@ -579,57 +586,73 @@
     });
   }
 
-  /* ---------- edit timeline: scroll = playhead, page sections = clips on V1 ---------- */
+  /* ---------- edit timeline (Resolve Edit page look): scroll = playhead, page sections = clips ---------- */
 
-  const PX_PER_FRAME = 4; // page runtime: 4 px of scroll = 1 frame at 24 fps
-  let tlClips = [];       // [{ el, link }]
-  let tlFrame = 0;
+  const PX_PER_FRAME = 4;  // page runtime: 4 px of scroll = 1 frame at 24 fps
+  let tlClips = [];        // [{ el, link, audio }]
+  let tlFrame = -1;
 
-  function renderTimeline(navItems) {
+  // A made-up waveform, the same for the same seed on every load.
+  function waveSvg(seed) {
+    const n = 90;
+    let d = '';
+    for (let i = 0; i < n; i++) {
+      const a = 0.15 + 0.8 * Math.abs(Math.sin((i + seed * 13) * 0.37) * Math.cos((i + seed * 7) * 0.113) * Math.sin(i * 0.05 + seed));
+      d += 'M' + (i + 0.5) + ' ' + (50 - a * 44).toFixed(1) + 'V' + (50 + a * 44).toFixed(1);
+    }
+    return '<svg viewBox="0 0 ' + n + ' 100" preserveAspectRatio="none" aria-hidden="true">' +
+      '<path d="' + d + '" stroke="currentColor" stroke-width="0.6" vector-effect="non-scaling-stroke"/></svg>';
+  }
+
+  function renderTimeline(items) {
     const lane = $('#tl-clips');
+    const audioLane = $('#tl-audio');
     lane.replaceChildren();
-    tlClips = [{ label: 'Intro', target: 'hero' }].concat(navItems).map((it) => {
+    audioLane.replaceChildren();
+    tlClips = items.map((it, i) => {
       const el = document.getElementById(it.target);
       if (!el) return null;
-      const link = h('a', 'tl-clip' + (/^genre-/.test(it.target) ? ' is-work' : ''), null, { href: '#' + it.target, title: it.label });
-      link.appendChild(h('span', null, it.label));
+      // reels are video clips with a filmstrip; the other sections are title clips
+      const kind = /^genre-|^hero$/.test(it.target) ? '' : ' is-title';
+      const link = h('a', 'tl-clip' + kind, null, { href: '#' + it.target, title: it.label });
+      link.appendChild(h('span', 'tl-clip-name', it.label));
+      const strip = h('span', 'tl-clip-strip');
+      if (it.thumb) strip.style.backgroundImage = 'url("' + it.thumb.replace(/["\\]/g, '') + '")';
+      link.appendChild(strip);
       lane.appendChild(link);
-      return { el, link };
+      const audio = h('span', 'tl-aclip' + kind);
+      audio.innerHTML = waveSvg(i + 1); // generated, trusted markup
+      audioLane.appendChild(audio);
+      return { el, link, audio };
     }).filter(Boolean);
-
-    // A1: a fixed, made-up waveform (same every load)
-    const wave = $('#tl-wave');
-    if (!wave.firstChild) {
-      const n = 180;
-      let d = '';
-      for (let i = 0; i < n; i++) {
-        const a = 0.18 + 0.8 * Math.abs(Math.sin(i * 0.37) * Math.cos(i * 0.113) * Math.sin(i * 0.05 + 1));
-        d += 'M' + (i + 0.5) + ' ' + (50 - a * 46).toFixed(1) + 'V' + (50 + a * 46).toFixed(1);
-      }
-      wave.innerHTML = '<svg class="tl-wave" viewBox="0 0 ' + n + ' 100" preserveAspectRatio="none" aria-hidden="true">' +
-        '<path d="' + d + '" stroke="currentColor" stroke-width="0.55" vector-effect="non-scaling-stroke"/></svg>';
-    }
     layoutTimeline();
   }
 
-  // Clip widths and in/out timecodes follow each section's real place on the page.
+  // Clip widths, ruler marks and in/out timecodes follow each section's real place on the page.
   function layoutTimeline() {
     const total = document.documentElement.scrollHeight;
     if (!total || !tlClips.length) return;
     const laneW = $('#tl-clips').clientWidth;
-    tlClips.forEach(({ el, link }) => {
+    tlClips.forEach(({ el, link, audio }) => {
       const top = el.getBoundingClientRect().top + window.scrollY;
-      const left = (top / total) * 100;
-      const width = (el.offsetHeight / total) * 100;
-      link.style.left = left + '%';
-      link.style.width = 'calc(' + width + '% - 2px)';
-      link.classList.toggle('tight', (width / 100) * laneW < 64);
+      const left = (top / total) * 100 + '%';
+      const width = 'calc(' + (el.offsetHeight / total) * 100 + '% - 1px)';
+      link.style.left = audio.style.left = left;
+      link.style.width = audio.style.width = width;
+      link.classList.toggle('tight', (el.offsetHeight / total) * laneW < 56);
       const tc = el.querySelector('.genre-tc');
       if (tc) {
-        tc.textContent = 'IN ' + toTimecode(Math.round(top / PX_PER_FRAME)) + '  OUT ' +
-          toTimecode(Math.round((top + el.offsetHeight) / PX_PER_FRAME));
+        tc.textContent = 'IN ' + toTimecode(Math.round(top / PX_PER_FRAME), true) + '  OUT ' +
+          toTimecode(Math.round((top + el.offsetHeight) / PX_PER_FRAME), true);
       }
     });
+    const ruler = $('#tl-ruler');
+    ruler.replaceChildren();
+    for (let k = 0; k < 10; k++) {
+      const mark = h('span', 'tl-mark', toTimecode(Math.round((total * k) / 10 / PX_PER_FRAME), true));
+      mark.style.left = k * 10 + '%';
+      ruler.appendChild(mark);
+    }
     updatePlayhead();
   }
 
@@ -638,12 +661,11 @@
     const y = window.scrollY + window.innerHeight / 2; // the frame under the playhead = middle of the screen
     const lane = $('#tl-clips');
     $('#tl-head').style.transform = 'translateX(' + (lane.offsetLeft + (y / total) * lane.clientWidth) + 'px)';
-    const frame = Math.round(window.scrollY / PX_PER_FRAME);
-    if (frame !== tlFrame) { tlFrame = frame; $('#tl-tc').textContent = toTimecode(frame); }
+    const frame = Math.round(y / PX_PER_FRAME);
+    if (frame !== tlFrame) { tlFrame = frame; $('#tl-tc').textContent = toTimecode(frame, true); }
     tlClips.forEach(({ el, link }) => {
       const top = el.getBoundingClientRect().top + window.scrollY;
-      const on = y >= top && y < top + el.offsetHeight;
-      if (on) link.setAttribute('aria-current', 'true');
+      if (y >= top && y < top + el.offsetHeight) link.setAttribute('aria-current', 'true');
       else link.removeAttribute('aria-current');
     });
   }
@@ -727,7 +749,7 @@
     renderFooter(site);
     setupObservers();
     fitText();
-    renderTimeline(navItems);
+    renderTimeline([{ label: 'Showreel', target: 'hero', thumb: parseVideo(site.showreel).thumb }].concat(navItems));
 
     firstRender = false;
     document.dispatchEvent(new CustomEvent('portfolio:rendered'));
@@ -803,10 +825,12 @@
   function wire() {
     $('#player-close').addEventListener('click', closePlayer);
     $('#player-backdrop').addEventListener('click', closePlayer);
-    $('#play-showreel').addEventListener('click', () => {
+    const playReel = () => {
       const site = (content && content.site) || {};
       openPlayer({ title: 'Showreel', url: site.showreel, client: str(site.name), vertical: false });
-    });
+    };
+    $('#play-showreel').addEventListener('click', playReel);
+    $('#tr-play').addEventListener('click', playReel);
     $('#nav-toggle').addEventListener('click', () => setMenu(!document.body.classList.contains('menu-open')));
     // any tap in the open menu closes it: on a link (after jumping) or on the empty space around them
     $('#mobile-menu').addEventListener('click', () => setMenu(false));
