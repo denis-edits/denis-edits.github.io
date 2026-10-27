@@ -128,14 +128,15 @@
     $('#hero-role').textContent = str(site.role);
     $('#hero-intro').textContent = str(site.intro);
 
-    // Kinetic headline: each word slides up from a clipped line.
+    // Kinetic headline: each word cuts in on its own frame; the last one in the accent colour.
     const title = $('#hero-tagline');
     title.replaceChildren();
     title.classList.toggle('no-anim', !firstRender);
     const words = str(site.tagline).split(/\s+/).filter(Boolean);
+    const altAt = words.length - 1;
     title.setAttribute('aria-label', words.join(' '));
     words.forEach((w, i) => {
-      const wrap = h('span', 'word' + (i % 2 === 1 ? ' word-alt' : ''));
+      const wrap = h('span', 'word' + (i === altAt && i > 0 ? ' word-alt' : ''));
       wrap.setAttribute('aria-hidden', 'true');
       const inner = h('span', 'word-in', w);
       inner.style.setProperty('--i', i);
@@ -145,14 +146,37 @@
     });
 
     const total = sections.reduce((n, s) => n + (Array.isArray(s.videos) ? s.videos.length : 0), 0);
-    $('#hero-meta').textContent = sections.length + ' genres  /  ' + total + ' films';
+    $('#hero-meta').textContent = String(sections.length).padStart(2, '0') + ' reels on the timeline  /  ' + String(total).padStart(2, '0') + ' clips';
 
     // Showreel button + optional looping background clip
     const reel = parseVideo(site.showreel);
     const btn = $('#play-showreel');
     btn.hidden = !str(site.showreel).trim();
 
+    renderHeroMedia(reel, str(site.showreel).trim());
+
+    // Playful timecode: counts up at 24 fps
+    const tc = $('#timecode');
+    if (reduceMotion) { tc.textContent = '00:00:00:00'; }
+    else if (!timecodeTimer) {
+      const t0 = performance.now();
+      timecodeTimer = setInterval(() => {
+        tc.textContent = toTimecode(Math.floor(((performance.now() - t0) / 1000) * 24));
+      }, 1000 / 24);
+    }
+  }
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  function toTimecode(frames) {
+    const s = Math.floor(frames / 24);
+    return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s / 60) % 60) + ':' + pad2(s % 60) + ':' + pad2(frames % 24);
+  }
+
+  // The showreel behind the hero. Rebuilt only when its link changes, so admin previews don't reload the player.
+  function renderHeroMedia(reel, key) {
     const media = $('#hero-media');
+    if (media.dataset.reel === key) return;
+    media.dataset.reel = key;
     media.replaceChildren();
     if (reel.type === 'file' && !reduceMotion) {
       const v = h('video');
@@ -162,19 +186,25 @@
       media.appendChild(v);
       const p = v.play();
       if (p && p.catch) p.catch(() => {});
-    }
-
-    // Playful timecode: counts up at 24 fps
-    const tc = $('#timecode');
-    if (reduceMotion) { tc.textContent = '00:00:00:00'; }
-    else if (!timecodeTimer) {
-      const t0 = performance.now();
-      const pad = (n) => String(n).padStart(2, '0');
-      timecodeTimer = setInterval(() => {
-        const f = Math.floor(((performance.now() - t0) / 1000) * 24);
-        const s = Math.floor(f / 24);
-        tc.textContent = pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60) + ':' + pad(f % 24);
-      }, 1000 / 24);
+    } else if (reel.type === 'youtube') {
+      // still frame first (max-res, falls back to hq), so the footage is there before any player loads
+      const img = h('img', null, null, { alt: '', decoding: 'async', fetchpriority: 'high' });
+      // the hq fallback is 4:3 with black bars baked in: is-hq crops them away
+      const fallback = () => { img.classList.add('is-hq'); img.src = reel.thumb; };
+      img.addEventListener('load', () => { if (img.naturalWidth < 200) fallback(); }, { once: true });
+      img.addEventListener('error', fallback, { once: true });
+      img.src = 'https://i.ytimg.com/vi/' + reel.id + '/maxresdefault.jpg';
+      media.appendChild(img);
+      // desktop only: a muted looping embed, cut in once it has had time to start (hides YouTube's load UI)
+      if (!reduceMotion && window.matchMedia('(min-width: 861px) and (pointer: fine)').matches) {
+        const f = h('iframe', 'hero-yt', null, {
+          title: 'Showreel (background)', tabindex: '-1', 'aria-hidden': 'true', allow: 'autoplay; encrypted-media',
+        });
+        f.addEventListener('load', () => setTimeout(() => f.classList.add('on'), 2600), { once: true });
+        f.src = 'https://www.youtube-nocookie.com/embed/' + reel.id + '?autoplay=1&mute=1&controls=0&loop=1&playlist=' + reel.id +
+          '&playsinline=1&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3';
+        media.appendChild(f);
+      }
     }
   }
 
@@ -210,7 +240,7 @@
       items.forEach((t) => {
         const item = h('span', 'ticker-item');
         item.appendChild(h('span', 'ticker-text', t));
-        item.appendChild(h('span', 'ticker-star', '✦'));
+        item.appendChild(h('span', 'ticker-star', '/ CUT'));
         track.appendChild(item);
       });
     }
@@ -248,7 +278,7 @@
     };
 
     if (thumb) {
-      const img = h('img', 'card-img', null, { alt: '', loading: 'lazy', decoding: 'async' });
+      const img = h('img', 'card-img' + (thumb === info.thumb && info.type === 'youtube' ? ' is-hq' : ''), null, { alt: '', loading: 'lazy', decoding: 'async' });
       img.addEventListener('error', () => { img.replaceWith(placeholder()); });
       img.src = thumb;
       media.appendChild(img);
@@ -266,6 +296,7 @@
     const play = h('span', 'card-play');
     play.innerHTML = PLAY_ICON; // static, trusted markup
     media.appendChild(play);
+    media.appendChild(h('span', 'card-tc', 'CLIP ' + pad2(i + 1), { 'aria-hidden': 'true' }));
     if (vertical) media.appendChild(h('span', 'card-badge', '9:16'));
     media.appendChild(h('span', 'card-sheen'));
     card.appendChild(media);
@@ -305,11 +336,19 @@
       const el = h('section', 'genre', null, { id, 'aria-labelledby': id + '-title' });
       el.dataset.spy = '';
 
+      // slate: reel number + in/out timecodes (filled in by layoutTimeline from the section's place on the page)
       const head = h('div', 'genre-head reveal');
-      head.appendChild(h('span', 'genre-index', String(idx + 1).padStart(2, '0'), { 'aria-hidden': 'true' }));
-      head.appendChild(h('h2', 'genre-title', title, { id: id + '-title' }));
-      if (sec.description) head.appendChild(h('p', 'genre-desc', str(sec.description)));
-      head.appendChild(h('span', 'genre-count', videos.length + (videos.length === 1 ? ' film' : ' films')));
+      const slate = h('p', 'genre-slate', null, { 'aria-hidden': 'true' });
+      slate.appendChild(h('span', 'genre-index', 'V1 / Reel ' + pad2(idx + 1)));
+      slate.appendChild(h('span', 'genre-tc'));
+      head.appendChild(slate);
+      const titleWrap = h('div', 'genre-title-wrap');
+      titleWrap.appendChild(h('h2', 'genre-title', title, { id: id + '-title' }));
+      head.appendChild(titleWrap);
+      const aside = h('div', 'genre-aside');
+      if (sec.description) aside.appendChild(h('p', 'genre-desc', str(sec.description)));
+      aside.appendChild(h('span', 'genre-count', pad2(videos.length) + (videos.length === 1 ? ' clip' : ' clips')));
+      head.appendChild(aside);
       el.appendChild(head);
 
       const allVertical = videos.length > 0 && videos.every((v) => v.vertical === true);
@@ -540,6 +579,83 @@
     });
   }
 
+  /* ---------- edit timeline: scroll = playhead, page sections = clips on V1 ---------- */
+
+  const PX_PER_FRAME = 4; // page runtime: 4 px of scroll = 1 frame at 24 fps
+  let tlClips = [];       // [{ el, link }]
+  let tlFrame = 0;
+
+  function renderTimeline(navItems) {
+    const lane = $('#tl-clips');
+    lane.replaceChildren();
+    tlClips = [{ label: 'Intro', target: 'hero' }].concat(navItems).map((it) => {
+      const el = document.getElementById(it.target);
+      if (!el) return null;
+      const link = h('a', 'tl-clip' + (/^genre-/.test(it.target) ? ' is-work' : ''), null, { href: '#' + it.target, title: it.label });
+      link.appendChild(h('span', null, it.label));
+      lane.appendChild(link);
+      return { el, link };
+    }).filter(Boolean);
+
+    // A1: a fixed, made-up waveform (same every load)
+    const wave = $('#tl-wave');
+    if (!wave.firstChild) {
+      const n = 180;
+      let d = '';
+      for (let i = 0; i < n; i++) {
+        const a = 0.18 + 0.8 * Math.abs(Math.sin(i * 0.37) * Math.cos(i * 0.113) * Math.sin(i * 0.05 + 1));
+        d += 'M' + (i + 0.5) + ' ' + (50 - a * 46).toFixed(1) + 'V' + (50 + a * 46).toFixed(1);
+      }
+      wave.innerHTML = '<svg class="tl-wave" viewBox="0 0 ' + n + ' 100" preserveAspectRatio="none" aria-hidden="true">' +
+        '<path d="' + d + '" stroke="currentColor" stroke-width="0.55" vector-effect="non-scaling-stroke"/></svg>';
+    }
+    layoutTimeline();
+  }
+
+  // Clip widths and in/out timecodes follow each section's real place on the page.
+  function layoutTimeline() {
+    const total = document.documentElement.scrollHeight;
+    if (!total || !tlClips.length) return;
+    const laneW = $('#tl-clips').clientWidth;
+    tlClips.forEach(({ el, link }) => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const left = (top / total) * 100;
+      const width = (el.offsetHeight / total) * 100;
+      link.style.left = left + '%';
+      link.style.width = 'calc(' + width + '% - 2px)';
+      link.classList.toggle('tight', (width / 100) * laneW < 64);
+      const tc = el.querySelector('.genre-tc');
+      if (tc) {
+        tc.textContent = 'IN ' + toTimecode(Math.round(top / PX_PER_FRAME)) + '  OUT ' +
+          toTimecode(Math.round((top + el.offsetHeight) / PX_PER_FRAME));
+      }
+    });
+    updatePlayhead();
+  }
+
+  function updatePlayhead() {
+    const total = document.documentElement.scrollHeight;
+    const y = window.scrollY + window.innerHeight / 2; // the frame under the playhead = middle of the screen
+    const lane = $('#tl-clips');
+    $('#tl-head').style.transform = 'translateX(' + (lane.offsetLeft + (y / total) * lane.clientWidth) + 'px)';
+    const frame = Math.round(window.scrollY / PX_PER_FRAME);
+    if (frame !== tlFrame) { tlFrame = frame; $('#tl-tc').textContent = toTimecode(frame); }
+    tlClips.forEach(({ el, link }) => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const on = y >= top && y < top + el.offsetHeight;
+      if (on) link.setAttribute('aria-current', 'true');
+      else link.removeAttribute('aria-current');
+    });
+  }
+
+  let tlRaf = 0;
+  window.addEventListener('scroll', () => {
+    if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(); });
+  }, { passive: true });
+  window.addEventListener('resize', () => requestAnimationFrame(layoutTimeline));
+  // images and fonts change the page height after render
+  if ('ResizeObserver' in window) new ResizeObserver(() => requestAnimationFrame(layoutTimeline)).observe(document.body);
+
   /* ---------- fit long words ---------- */
 
   // Big display text never breaks inside a word: when a word is wider than its box,
@@ -611,6 +727,7 @@
     renderFooter(site);
     setupObservers();
     fitText();
+    renderTimeline(navItems);
 
     firstRender = false;
     document.dispatchEvent(new CustomEvent('portfolio:rendered'));
@@ -715,7 +832,7 @@
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
 
-    window.addEventListener('resize', () => { if (window.innerWidth > 860) setMenu(false); });
+    window.addEventListener('resize', () => { if (window.innerWidth > 1100) setMenu(false); });
   }
 
   /* ---------- loading ---------- */
