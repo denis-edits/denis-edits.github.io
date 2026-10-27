@@ -253,15 +253,16 @@ main { overflow-x: clip; }
 .work-anchor { height: 0; }
 .genre {
   max-width: var(--max); margin: 0 auto; padding: clamp(72px, 11vw, 150px) var(--gutter) clamp(24px, 4vw, 48px);
-  display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); align-items: start;
+  display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); align-items: start;
 }
-.genre-head { position: sticky; top: calc(var(--nav-h) + 28px); }
+.genre-head { position: sticky; top: calc(var(--nav-h) + 28px); min-width: 0; container-type: inline-size; }
 .genre-index {
   display: block; font-family: var(--font-display); font-weight: 800; line-height: 0.85; letter-spacing: -0.04em;
   font-size: clamp(5rem, 11vw, 9rem); color: transparent; -webkit-text-stroke: 1.5px var(--accent);
   margin-bottom: 12px;
 }
-.genre-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.9rem, 3.6vw, 3rem); line-height: 1.05; letter-spacing: -0.02em; text-wrap: balance; }
+/* sized to the column (cqi) so long one-word titles like "Commercials" never spill into the grid */
+.genre-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.5rem, 10.5cqi, 3rem); line-height: 1.05; letter-spacing: -0.02em; text-wrap: balance; overflow-wrap: break-word; hyphens: auto; }
 .genre-desc { margin-top: 14px; color: var(--muted); max-width: 34ch; }
 .genre-count { display: inline-block; margin-top: 18px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 
@@ -326,6 +327,8 @@ main { overflow-x: clip; }
   .genre-index { grid-row: 1 / span 3; font-size: clamp(4.4rem, 20vw, 6.5rem); margin: 0; }
   .genre-desc { grid-column: 2; margin-top: 8px; max-width: none; }
   .genre-count { grid-column: 2; justify-self: start; margin-top: 10px; }
+  .genre-head > * { min-width: 0; }
+  .genre-title { font-size: clamp(1.6rem, 7.5vw, 2.6rem); }
 }
 @media (max-width: 600px) {
   .grid-vertical { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -334,9 +337,10 @@ main { overflow-x: clip; }
 
 /* ---------- about ---------- */
 .about { background: linear-gradient(to bottom, var(--bg), var(--surface) 30%, var(--surface) 70%, var(--bg)); padding: clamp(80px, 12vw, 170px) var(--gutter); }
-.about-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); }
+.about-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); }
 .eyebrow { display: inline-block; font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
-.about h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2.6rem, 7vw, 5.4rem); line-height: 0.95; letter-spacing: -0.03em; text-transform: uppercase; }
+.about-head { min-width: 0; container-type: inline-size; }
+.about h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2.2rem, 16cqi, 5.4rem); overflow-wrap: break-word; line-height: 0.95; letter-spacing: -0.03em; text-transform: uppercase; }
 .about-name { margin-top: 16px; color: var(--muted); font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; }
 .about-text { max-width: 62ch; }
 .about-text p { font-size: clamp(1.05rem, 1.8vw, 1.3rem); color: rgba(243, 241, 236, 0.86); }
