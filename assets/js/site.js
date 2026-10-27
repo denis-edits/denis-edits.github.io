@@ -345,7 +345,12 @@
   function renderContact(site) {
     const mail = $('#contact-email');
     const email = str(site.email).trim();
-    mail.textContent = email || 'Say hello';
+    // a long address may wrap after "@" (and only there) instead of shrinking to unreadable
+    mail.replaceChildren();
+    (email || 'Say hello').split('@').forEach((part, i) => {
+      if (i) mail.append('@', document.createElement('wbr'));
+      mail.append(part);
+    });
     if (email && !/[\s<>"]/.test(email)) mail.href = 'mailto:' + email;
     else mail.removeAttribute('href');
 
@@ -399,6 +404,39 @@
     });
   }
 
+  /* ---------- fit long words ---------- */
+
+  // Big display text never breaks inside a word: when a word is wider than its box,
+  // the font shrinks just enough for it to fit.
+  const FIT_SELECTOR = '#hero-tagline, .genre-title, #about-title, .contact h2, #contact-email';
+
+  function fitText() {
+    document.querySelectorAll(FIT_SELECTOR).forEach((el) => {
+      el.style.fontSize = '';
+      el.style.maxWidth = '';
+      // a max-width in ch/em shrinks with the font, so lift it before shrinking,
+      // but never let the text grow past its parent
+      if (el.scrollWidth > el.clientWidth + 1) el.style.maxWidth = 'none';
+      const parent = getComputedStyle(el.parentElement);
+      const parentW = el.parentElement.clientWidth - parseFloat(parent.paddingLeft) - parseFloat(parent.paddingRight);
+      const avail = Math.min(el.clientWidth, parentW);
+      if (!avail) return;
+      let size = parseFloat(getComputedStyle(el).fontSize);
+      for (let i = 0; i < 12 && el.scrollWidth > avail + 1 && size > 12; i++) {
+        size = Math.max(12, size * Math.min(0.97, avail / el.scrollWidth));
+        el.style.fontSize = size + 'px';
+      }
+    });
+  }
+
+  let fitFrame = 0;
+  function scheduleFit() {
+    cancelAnimationFrame(fitFrame);
+    fitFrame = requestAnimationFrame(fitText);
+  }
+  window.addEventListener('resize', scheduleFit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleFit);
+
   /* ---------- render ---------- */
 
   function render() {
@@ -422,6 +460,7 @@
     renderContact(site);
     renderFooter(site);
     setupObservers();
+    fitText();
 
     firstRender = false;
     document.dispatchEvent(new CustomEvent('portfolio:rendered'));

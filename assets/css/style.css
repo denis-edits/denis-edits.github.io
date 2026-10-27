@@ -189,7 +189,7 @@ body.menu-open .mobile-menu { opacity: 1; visibility: visible; transform: none; 
 .hero-tagline {
   font-family: var(--font-display); font-weight: 800; text-transform: uppercase;
   font-size: clamp(2.7rem, 11.2vw, 10.5rem); line-height: 0.92; letter-spacing: -0.035em;
-  max-width: 16ch; overflow-wrap: anywhere;
+  max-width: 16ch;
 }
 .word { display: inline-block; overflow: hidden; vertical-align: top; padding: 0.06em 0.04em 0.1em 0; margin-bottom: -0.1em; }
 .word-in { display: inline-block; transform: translateY(0); animation: wordUp 1.1s var(--ease) both; animation-delay: calc(var(--i) * 110ms + 250ms); }
@@ -262,7 +262,7 @@ main { overflow-x: clip; }
   margin-bottom: 12px;
 }
 /* sized to the column (cqi) so long one-word titles like "Commercials" never spill into the grid */
-.genre-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.5rem, 10.5cqi, 3rem); line-height: 1.05; letter-spacing: -0.02em; text-wrap: balance; overflow-wrap: break-word; hyphens: auto; }
+.genre-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.5rem, 10.5cqi, 3rem); line-height: 1.05; letter-spacing: -0.02em; text-wrap: balance; }
 .genre-desc { margin-top: 14px; color: var(--muted); max-width: 34ch; }
 .genre-count { display: inline-block; margin-top: 18px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 
@@ -323,12 +323,11 @@ main { overflow-x: clip; }
 
 @media (max-width: 960px) {
   .genre { grid-template-columns: 1fr; gap: 28px; }
-  .genre-head { position: static; display: grid; grid-template-columns: auto 1fr; column-gap: 20px; align-items: end; }
-  .genre-index { grid-row: 1 / span 3; font-size: clamp(4.4rem, 20vw, 6.5rem); margin: 0; }
-  .genre-desc { grid-column: 2; margin-top: 8px; max-width: none; }
-  .genre-count { grid-column: 2; justify-self: start; margin-top: 10px; }
-  .genre-head > * { min-width: 0; }
-  .genre-title { font-size: clamp(1.6rem, 7.5vw, 2.6rem); }
+  .genre-head { position: static; }
+  .genre-index { font-size: clamp(3.6rem, 16vw, 5.5rem); margin-bottom: 8px; }
+  .genre-desc { margin-top: 8px; max-width: none; }
+  .genre-count { margin-top: 10px; }
+  .genre-title { font-size: clamp(1.7rem, 8.5vw, 2.8rem); }
 }
 @media (max-width: 600px) {
   .grid-vertical { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -340,7 +339,7 @@ main { overflow-x: clip; }
 .about-inner { max-width: var(--max); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); }
 .eyebrow { display: inline-block; font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
 .about-head { min-width: 0; container-type: inline-size; }
-.about h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2.2rem, 16cqi, 5.4rem); overflow-wrap: break-word; line-height: 0.95; letter-spacing: -0.03em; text-transform: uppercase; }
+.about h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2.2rem, 16cqi, 5.4rem); line-height: 0.95; letter-spacing: -0.03em; text-transform: uppercase; }
 .about-name { margin-top: 16px; color: var(--muted); font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; }
 .about-text { max-width: 62ch; }
 .about-text p { font-size: clamp(1.05rem, 1.8vw, 1.3rem); color: rgba(243, 241, 236, 0.86); }
@@ -360,7 +359,7 @@ main { overflow-x: clip; }
 .contact-inner { max-width: 1100px; margin: 0 auto; }
 .contact h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.4rem, 3.4vw, 2.4rem); line-height: 1.15; max-width: 22ch; margin: 0 auto; text-wrap: balance; }
 .contact-email {
-  display: inline-block; margin: clamp(24px, 4vw, 44px) 0; max-width: 100%; overflow-wrap: anywhere;
+  display: inline-block; margin: clamp(24px, 4vw, 44px) 0; max-width: 100%;
   font-family: var(--font-display); font-weight: 800; font-size: clamp(1.7rem, 7.2vw, 5.6rem); line-height: 1.05; letter-spacing: -0.03em; text-decoration: none;
   background: linear-gradient(90deg, var(--text), var(--text)) 0 100% / 0 3px no-repeat; transition: background-size 0.6s var(--ease), color 0.3s;
 }
