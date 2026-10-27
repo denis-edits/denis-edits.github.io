@@ -345,12 +345,7 @@
   function renderContact(site) {
     const mail = $('#contact-email');
     const email = str(site.email).trim();
-    // a long address may wrap after "@" (and only there) instead of shrinking to unreadable
-    mail.replaceChildren();
-    (email || 'Say hello').split('@').forEach((part, i) => {
-      if (i) mail.append('@', document.createElement('wbr'));
-      mail.append(part);
-    });
+    mail.textContent = email || 'Say hello'; // one line; fitText shrinks it to fit
     if (email && !/[\s<>"]/.test(email)) mail.href = 'mailto:' + email;
     else mail.removeAttribute('href');
 
@@ -429,12 +424,13 @@
     });
   }
 
-  let fitFrame = 0;
+  let fitTimer = 0;
   function scheduleFit() {
-    cancelAnimationFrame(fitFrame);
-    fitFrame = requestAnimationFrame(fitText);
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(fitText, 80);
   }
   window.addEventListener('resize', scheduleFit);
+  window.addEventListener('orientationchange', scheduleFit);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleFit);
 
   /* ---------- render ---------- */
@@ -541,7 +537,8 @@
       openPlayer({ title: 'Showreel', url: site.showreel, client: str(site.name), vertical: false });
     });
     $('#nav-toggle').addEventListener('click', () => setMenu(!document.body.classList.contains('menu-open')));
-    $('#mobile-links').addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
+    // any tap in the open menu closes it: on a link (after jumping) or on the empty space around them
+    $('#mobile-menu').addEventListener('click', () => setMenu(false));
     $('#retry-load').addEventListener('click', () => { loadContent(); });
 
     document.addEventListener('keydown', (e) => {

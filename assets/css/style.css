@@ -323,11 +323,13 @@ main { overflow-x: clip; }
 
 @media (max-width: 960px) {
   .genre { grid-template-columns: 1fr; gap: 28px; }
-  .genre-head { position: static; }
-  .genre-index { font-size: clamp(3.6rem, 16vw, 5.5rem); margin-bottom: 8px; }
+  /* the big outlined number sits behind the title, which overlaps its lower half and gets the full width */
+  .genre-head { position: relative; top: auto; padding-top: clamp(3.3rem, 16.5vw, 5rem); }
+  .genre-index { position: absolute; top: 0; left: -0.04em; z-index: 0; margin: 0; font-size: clamp(5.2rem, 27vw, 7.8rem); -webkit-text-stroke-width: 2px; opacity: 0.9; pointer-events: none; }
+  .genre-title, .genre-desc, .genre-count { position: relative; z-index: 1; }
   .genre-desc { margin-top: 8px; max-width: none; }
   .genre-count { margin-top: 10px; }
-  .genre-title { font-size: clamp(1.7rem, 8.5vw, 2.8rem); }
+  .genre-title { font-size: clamp(1.8rem, 9vw, 2.9rem); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6); }
 }
 @media (max-width: 600px) {
   .grid-vertical { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -359,7 +361,7 @@ main { overflow-x: clip; }
 .contact-inner { max-width: 1100px; margin: 0 auto; }
 .contact h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.4rem, 3.4vw, 2.4rem); line-height: 1.15; max-width: 22ch; margin: 0 auto; text-wrap: balance; }
 .contact-email {
-  display: inline-block; margin: clamp(24px, 4vw, 44px) 0; max-width: 100%;
+  display: inline-block; margin: clamp(24px, 4vw, 44px) 0; max-width: 100%; white-space: nowrap;
   font-family: var(--font-display); font-weight: 800; font-size: clamp(1.7rem, 7.2vw, 5.6rem); line-height: 1.05; letter-spacing: -0.03em; text-decoration: none;
   background: linear-gradient(90deg, var(--text), var(--text)) 0 100% / 0 3px no-repeat; transition: background-size 0.6s var(--ease), color 0.3s;
 }
