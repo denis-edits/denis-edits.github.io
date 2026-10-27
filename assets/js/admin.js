@@ -5,7 +5,7 @@
   'use strict';
 
   // ------------------------------------------------------------------ constants
-  const DEFAULTS = { owner: 'denys702-wq', repo: 'Portofolio', branch: 'main' };
+  const DEFAULTS = { owner: 'denis-edits', repo: 'denis-edits.github.io', branch: 'main' };
   const AUTH_PATH = 'data/auth.json';
   const CONTENT_PATH = 'data/content.json';
   const SESSION_KEY = 'adm-token';
@@ -451,7 +451,7 @@
       { class: 'adm-steps' },
       h('li', null, 'Deschide ', link, ' (sau: github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token).'),
       h('li', null, 'La „Token name” scrie orice (ex. „Portofolio admin”) și alege „Expiration”. Când expiră, îl înlocuiești din Setări.'),
-      h('li', null, 'La „Repository access” alege ', h('strong', { text: 'Only select repositories' }), ' și selectează ', h('strong', { text: `${owner}/${repo}` }), '.'),
+      h('li', null, 'La „Resource owner” alege ', h('strong', { text: owner }), '. La „Repository access” alege ', h('strong', { text: 'Only select repositories' }), ' și selectează ', h('strong', { text: `${owner}/${repo}` }), '.'),
       h('li', null, 'La „Permissions” → „Repository permissions” → ', h('strong', { text: 'Contents' }), ' setează ', h('strong', { text: 'Read and write' }), '. Restul rămân „No access”.'),
       h('li', null, 'Apasă „Generate token”, copiază token-ul (începe cu github_pat_…) și lipește-l mai jos. GitHub îl arată o singură dată.'),
       h('li', null, 'Alege o parolă de admin. Token-ul este criptat în browser cu această parolă; pe GitHub ajunge doar textul criptat.')

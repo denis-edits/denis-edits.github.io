@@ -4,7 +4,7 @@ Site de portofoliu pentru editare video, găzduit gratuit pe **GitHub Pages**.
 Tot conținutul (texte, secțiuni pe genuri, videoclipuri) se editează **direct din site**, din panoul de admin
 protejat cu parolă.
 
-Adresa publică: **https://denys702-wq.github.io/Portofolio/**
+Adresa publică: **https://denis-edits.github.io/**
 
 ## Cum editezi site-ul
 
@@ -27,7 +27,8 @@ Adresa publică: **https://denys702-wq.github.io/Portofolio/**
 
 1. Creează un **token GitHub fine-grained**:
    <https://github.com/settings/personal-access-tokens/new>
-   - *Repository access*: **Only select repositories** → `Portofolio`
+   - *Resource owner*: **denis-edits** (organizația, nu contul personal)
+   - *Repository access*: **Only select repositories** → `denis-edits.github.io`
    - *Permissions → Repository permissions → Contents*: **Read and write**
    - Alege o expirare (când expiră, faci un token nou și îl înlocuiești din **Setări**).
 2. Pe site, apasă lacătul → **Configurare inițială**: lipești tokenul și alegi parola de admin.

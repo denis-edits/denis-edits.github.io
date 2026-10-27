@@ -1,6 +1,6 @@
 # Portofolio — technical spec (contract between site and admin)
 
-Static video-editing portfolio hosted on **GitHub Pages** (repo `denys702-wq/Portofolio`, branch `main`,
+Static video-editing portfolio hosted on **GitHub Pages** (repo `denis-edits/denis-edits.github.io`, branch `main`,
 served from the repo root). No build step, no Node, no frameworks: plain HTML + CSS + vanilla JS (ES2020),
 works by opening via any static server (`python -m http.server`).
 
@@ -92,7 +92,7 @@ SITE puts in the footer: `<button id="admin-trigger" class="admin-trigger" type=
 
 Initial (not yet set up):
 ```json
-{ "version": 1, "owner": "denys702-wq", "repo": "Portofolio", "branch": "main" }
+{ "version": 1, "owner": "denis-edits", "repo": "denis-edits.github.io", "branch": "main" }
 ```
 After setup:
 ```json
