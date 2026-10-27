@@ -1,0 +1,205 @@
+{
+  "site": {
+    "name": "Your Name",
+    "role": "Video Editor",
+    "tagline": "Cuts that move people.",
+    "intro": "I shape raw footage into stories with rhythm, emotion and a pulse. Music videos, commercials, reels, weddings and short films - cut with intent, graded with taste.",
+    "showreel": "https://www.youtube.com/watch?v=eRsGyueVLvQ",
+    "about": "I am a video editor obsessed with the invisible craft: the cut that lands on the beat, the sound design that makes a frame breathe, the grade that sets the mood before anyone speaks.\nFrom fast-paced social content to long-form storytelling, I work closely with directors, artists and brands to turn hours of footage into something people actually remember.\nAvailable for freelance projects worldwide. Tell me about your next one.",
+    "email": "you@example.com",
+    "socials": [
+      { "label": "Instagram", "url": "https://instagram.com/" },
+      { "label": "YouTube", "url": "https://youtube.com/" },
+      { "label": "Vimeo", "url": "https://vimeo.com/" },
+      { "label": "LinkedIn", "url": "https://linkedin.com/" }
+    ],
+    "accent": "#ff3b5c"
+  },
+  "sections": [
+    {
+      "id": "music-videos",
+      "title": "Music Videos",
+      "description": "Cutting to the beat: performance, narrative and everything in between.",
+      "videos": [
+        {
+          "id": "v-1730000000001",
+          "title": "OK Go - Here It Goes Again",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=dTAAsCNK7RA",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "Sample",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000002",
+          "title": "Gotye - Somebody That I Used to Know",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://youtu.be/8UVNT4wvIGY",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000003",
+          "title": "a-ha - Take On Me",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=djV11Xbc914",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample",
+          "vertical": false
+        }
+      ]
+    },
+    {
+      "id": "commercials",
+      "title": "Commercials",
+      "description": "Thirty seconds to make a brand unforgettable.",
+      "videos": [
+        {
+          "id": "v-1730000000004",
+          "title": "Volvo Trucks - The Epic Split",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=M7FIvfx5J10",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "Sample Brand",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000005",
+          "title": "Old Spice - The Man Your Man Could Smell Like",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=owGykVbfgUE",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample Brand",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000006",
+          "title": "Dumb Ways to Die",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=IdneKLhsWOQ",
+          "thumbnail": "",
+          "year": "2024",
+          "client": "Sample Brand",
+          "vertical": false
+        }
+      ]
+    },
+    {
+      "id": "social-reels",
+      "title": "Social Media / Reels",
+      "description": "Vertical, fast and built to stop the scroll.",
+      "videos": [
+        {
+          "id": "v-1730000000007",
+          "title": "Reel - Behind the Scenes",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/shorts/jNQXAC9IVRw",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "Sample",
+          "vertical": true
+        },
+        {
+          "id": "v-1730000000008",
+          "title": "Reel - Product Teaser",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/shorts/9bZkp7q19f0",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "Sample",
+          "vertical": true
+        },
+        {
+          "id": "v-1730000000009",
+          "title": "Reel - Event Recap",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample",
+          "vertical": true
+        }
+      ]
+    },
+    {
+      "id": "weddings-events",
+      "title": "Weddings & Events",
+      "description": "The big day, told the way it felt.",
+      "videos": [
+        {
+          "id": "v-1730000000010",
+          "title": "Cinematic Highlight Film",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://vimeo.com/76979871",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "Sample Couple",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000011",
+          "title": "Event Aftermovie",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://vimeo.com/1084537",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample Event",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000012",
+          "title": "Ceremony Teaser",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample Couple",
+          "vertical": false
+        }
+      ]
+    },
+    {
+      "id": "short-films-documentary",
+      "title": "Short Films / Documentary",
+      "description": "Long-form storytelling, pacing and structure.",
+      "videos": [
+        {
+          "id": "v-1730000000013",
+          "title": "Tears of Steel",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=R6MlUcmOul8",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "Sample Studio",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000014",
+          "title": "Big Buck Bunny",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+          "thumbnail": "",
+          "year": "2025",
+          "client": "Sample Studio",
+          "vertical": false
+        },
+        {
+          "id": "v-1730000000015",
+          "title": "Elephants Dream",
+          "description": "Placeholder - replace with your own work.",
+          "url": "https://www.youtube.com/watch?v=TLkA0RELQ1g",
+          "thumbnail": "",
+          "year": "2024",
+          "client": "Sample Studio",
+          "vertical": false
+        }
+      ]
+    }
+  ]
+}
