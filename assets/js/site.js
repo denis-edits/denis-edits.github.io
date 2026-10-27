@@ -360,6 +360,147 @@
     });
   }
 
+  /* ---------- trust blocks: availability, proof band, testimonials, contact form ---------- */
+
+  // Items of a block that should be shown: the block and the item are not hidden, and keep(item) holds.
+  function visibleItems(block, keep) {
+    if (!block || block.hidden === true || !Array.isArray(block.items)) return [];
+    return block.items.filter((it) => it && it.hidden !== true && keep(it));
+  }
+
+  function renderAvailability(c) {
+    const a = c.availability;
+    const text = a && a.hidden !== true ? str(a.text).trim() : '';
+    ['#hero-avail', '#contact-avail'].forEach((sel) => {
+      const el = $(sel);
+      el.hidden = !text;
+      el.querySelector('.avail-text').textContent = text;
+    });
+  }
+
+  function renderProof(c) {
+    const stats = visibleItems(c.stats, (it) => str(it.value).trim());
+    const clients = visibleItems(c.clients, (it) => str(it.name).trim() || safeUrl(it.logo));
+
+    const dl = $('#proof-stats');
+    dl.replaceChildren();
+    stats.forEach((it) => {
+      const box = h('div', 'proof-stat');
+      box.appendChild(h('dd', 'proof-num', str(it.value)));
+      box.appendChild(h('dt', 'proof-label', str(it.label)));
+      dl.appendChild(box);
+    });
+    dl.hidden = !stats.length;
+
+    const list = $('#client-list');
+    list.replaceChildren();
+    clients.forEach((it) => {
+      const url = safeUrl(it.url);
+      const logo = safeUrl(it.logo);
+      const name = str(it.name).trim();
+      const li = h('li', 'client');
+      const inner = url ? h('a', 'client-link', null, { href: url, target: '_blank', rel: 'noopener noreferrer' }) : h('span', 'client-link');
+      if (logo) {
+        const img = h('img', 'client-logo', null, { alt: name || 'Client logo', loading: 'lazy', decoding: 'async' });
+        img.addEventListener('error', () => { img.replaceWith(h('span', 'client-name', name)); });
+        img.src = logo;
+        inner.appendChild(img);
+      } else {
+        inner.appendChild(h('span', 'client-name', name));
+      }
+      li.appendChild(inner);
+      list.appendChild(li);
+    });
+    $('#clients-title').textContent = str(c.clients && c.clients.title).trim() || 'Worked with';
+    $('#proof-clients').hidden = !clients.length;
+    $('#proof').hidden = !stats.length && !clients.length;
+  }
+
+  function renderTestimonials(c, navItems) {
+    const items = visibleItems(c.testimonials, (it) => str(it.quote).trim());
+    const title = str(c.testimonials && c.testimonials.title).trim() || 'Kind words';
+    $('#testimonials').hidden = !items.length;
+    $('#testimonials-title').textContent = title;
+    const list = $('#quotes');
+    list.replaceChildren();
+    items.forEach((it, i) => {
+      const li = h('li', 'quote reveal');
+      li.style.setProperty('--d', (i % 3) * 90 + 'ms');
+      li.appendChild(h('blockquote', 'quote-text', str(it.quote)));
+      const who = h('div', 'quote-who');
+      const photo = safeUrl(it.photo);
+      const initial = h('span', 'quote-initial', (str(it.name).trim()[0] || '*').toUpperCase(), { 'aria-hidden': 'true' });
+      if (photo) {
+        const img = h('img', 'quote-photo', null, { alt: '', loading: 'lazy', decoding: 'async' });
+        img.addEventListener('error', () => { img.replaceWith(initial); });
+        img.src = photo;
+        who.appendChild(img);
+      } else {
+        who.appendChild(initial);
+      }
+      const meta = h('div', 'quote-meta');
+      meta.appendChild(h('span', 'quote-name', str(it.name)));
+      if (str(it.role).trim()) meta.appendChild(h('span', 'quote-role', str(it.role)));
+      who.appendChild(meta);
+      li.appendChild(who);
+      list.appendChild(li);
+    });
+    if (items.length) navItems.push({ label: title, target: 'testimonials' });
+  }
+
+  function renderContactForm(c, sections) {
+    const cf = c.contactForm;
+    const form = $('#contact-form');
+    const on = !!(cf && cf.hidden !== true && str(cf.accessKey).trim());
+    form.hidden = !on;
+    if (!on) return;
+    form.querySelector('.cf-submit').textContent = str(cf.buttonText).trim() || 'Send message';
+    const sel = form.elements.project_type;
+    const keep = sel.value;
+    sel.replaceChildren(h('option', null, 'Choose...', { value: '' }));
+    sections.map((s) => str(s.title).trim()).filter(Boolean).concat('Other')
+      .forEach((t) => sel.appendChild(h('option', null, t, { value: t })));
+    sel.value = keep;
+  }
+
+  async function submitContactForm(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const status = $('#cf-status');
+    const btn = form.querySelector('.cf-submit');
+    const say = (msg, state) => { status.textContent = msg; status.dataset.state = state || ''; };
+    if (form.elements.botcheck.checked) return; // honeypot: bots tick it, people never see it
+
+    const data = {};
+    ['name', 'email', 'project_type', 'deadline', 'budget', 'message'].forEach((k) => { data[k] = form.elements[k].value.trim(); });
+    if (!data.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email) || !data.message) {
+      say('Please fill in your name, a valid email and a few words about the project.', 'error');
+      return;
+    }
+    const cf = (content && content.contactForm) || {};
+    btn.disabled = true;
+    say('Sending...');
+    try {
+      const res = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(Object.assign({
+          access_key: str(cf.accessKey).trim(),
+          subject: 'New project inquiry from ' + data.name,
+          from_name: 'Portfolio website',
+        }, data)),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j.success === false) throw new Error(j.message || 'HTTP ' + res.status);
+      form.reset();
+      say('Thank you! Your message is on its way, I will get back to you soon.', 'ok');
+    } catch (err) {
+      say('Sorry, the message could not be sent. Please email me directly at the address above.', 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function renderFooter(site) {
     $('#year').textContent = new Date().getFullYear();
     $('#footer-name').textContent = str(site.name);
@@ -444,7 +585,10 @@
   function render() {
     if (!content) return;
     const site = content.site || {};
-    const sections = Array.isArray(content.sections) ? content.sections : [];
+    // hidden sections and videos stay in the data but are left out of the page, nav, ticker and counts
+    const sections = (Array.isArray(content.sections) ? content.sections : [])
+      .filter((s) => s && s.hidden !== true)
+      .map((s) => Object.assign({}, s, { videos: (Array.isArray(s.videos) ? s.videos : []).filter((v) => v && v.hidden !== true) }));
 
     // accent colour -> CSS variables
     const rgb = hexToRgb(site.accent) || [255, 59, 92];
@@ -455,11 +599,15 @@
     const navItems = [];
     renderHero(site, sections);
     renderSections(sections, navItems);
+    renderTestimonials(content, navItems);
     navItems.push({ label: 'About', target: 'about' }, { label: 'Contact', target: 'contact' });
     renderNav(navItems);
     renderTicker(sections.map((s) => str(s.title)).filter(Boolean));
     renderAbout(site, sections);
     renderContact(site);
+    renderAvailability(content);
+    renderProof(content);
+    renderContactForm(content, sections);
     renderFooter(site);
     setupObservers();
     fitText();
@@ -546,6 +694,7 @@
     // any tap in the open menu closes it: on a link (after jumping) or on the empty space around them
     $('#mobile-menu').addEventListener('click', () => setMenu(false));
     $('#retry-load').addEventListener('click', () => { loadContent(); });
+    $('#contact-form').addEventListener('submit', submitContactForm);
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {

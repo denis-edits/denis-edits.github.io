@@ -109,3 +109,34 @@ with the admin password (PBKDF2-SHA256 600k → AES-GCM 256) and the ciphertext 
 `data/auth.json`. Without the password nobody can decrypt the token, so nobody else can change the site.
 Visitors who open the admin panel before setup cannot harm anything: a token of theirs has no write
 access to this repo.
+
+## Trust blocks + hide flags (added 2026-10-27)
+
+New optional top-level keys in `data/content.json` (all may be missing; site and admin must tolerate that):
+
+```json
+{
+  "availability": { "hidden": false, "text": "Available for new projects" },
+  "stats":        { "hidden": false, "items": [ { "value": "2M+", "label": "Views generated", "hidden": false } ] },
+  "clients":      { "hidden": false, "title": "Worked with",
+                    "items": [ { "name": "Brand", "logo": "media/logo.png", "url": "https://…", "hidden": false } ] },
+  "testimonials": { "hidden": false, "title": "Kind words",
+                    "items": [ { "quote": "…", "name": "Jane Doe", "role": "Producer, Brand", "photo": "", "hidden": false } ] },
+  "contactForm":  { "hidden": false, "accessKey": "", "buttonText": "Send message" }
+}
+```
+plus `sections[].hidden` and `sections[].videos[].hidden` (boolean).
+
+**Hide = keep but don't show.** `hidden: true` on a block or an item removes it from the public page
+(and from nav, ticker, counts) but keeps it in content.json so the owner can show it again.
+
+Render rules (site.js):
+- availability: shown (small pill with a pulsing green dot) in the hero meta line and above the contact
+  title when `!hidden && text`.
+- stats + clients: one "proof" band right after the genre ticker, before the work. Stats render if
+  `!hidden` and ≥1 visible item with a value; clients if `!hidden` and ≥1 visible item with name or logo
+  (logo image if set, else the name as text; linked if url).
+- testimonials: section `#testimonials` after the genre sections, before About; nav link uses its title.
+- contactForm: inside Contact, below the email, when `!hidden && accessKey`. Posts JSON to
+  `https://api.web3forms.com/submit` (fields: access_key, name, email, project_type, deadline, budget,
+  message, subject, botcheck honeypot). Shows inline success/error.

@@ -31,6 +31,7 @@
     blobs: new Map(), // uploaded media path -> local object URL (for previews)
     previewTimer: 0,
     override: null, // transient footer message { text, kind }
+    pending: new Map(), // trust-block key -> default object, attached to content on first edit
   };
   const M = { root: null, title: null, body: null }; // modal
   const D = { root: null, body: null, status: null, publish: null, sub: null, tabs: [] }; // drawer
@@ -286,7 +287,54 @@
         v.vertical = !!v.vertical;
       });
     });
+    out.sections.forEach((sec) => {
+      if ('hidden' in sec) sec.hidden = !!sec.hidden;
+      sec.videos.forEach((v) => { if ('hidden' in v) v.hidden = !!v.hidden; });
+    });
+    // trust blocks are optional: tidy the ones that exist, never create missing ones
+    TRUST_KEYS.forEach((k) => {
+      if (!(k in out)) return;
+      const b = out[k];
+      if (!b || typeof b !== 'object' || Array.isArray(b)) { delete out[k]; return; }
+      if ('hidden' in b) b.hidden = !!b.hidden;
+      const def = trustDefaults(k);
+      Object.keys(def).forEach((f) => {
+        if (f === 'items') {
+          b.items = Array.isArray(b.items) ? b.items.filter((x) => x && typeof x === 'object') : [];
+          b.items.forEach((it) => {
+            if ('hidden' in it) it.hidden = !!it.hidden;
+            Object.keys(trustItemDefaults(k)).forEach((g) => { if (g !== 'hidden' && typeof it[g] !== 'string') it[g] = it[g] == null ? '' : String(it[g]); });
+          });
+        } else if (f !== 'hidden' && typeof b[f] !== 'string' && b[f] != null) b[f] = String(b[f]);
+      });
+    });
     return out;
+  }
+  const TRUST_KEYS = ['availability', 'stats', 'clients', 'testimonials', 'contactForm'];
+  function trustDefaults(k) {
+    switch (k) {
+      case 'availability': return { hidden: false, text: '' };
+      case 'stats': return { hidden: false, items: [] };
+      case 'clients': return { hidden: false, title: 'Worked with', items: [] };
+      case 'testimonials': return { hidden: false, title: 'Kind words', items: [] };
+      default: return { hidden: false, accessKey: '', buttonText: 'Send message' };
+    }
+  }
+  function trustItemDefaults(k) {
+    if (k === 'stats') return { value: '', label: '', hidden: false };
+    if (k === 'clients') return { name: '', logo: '', url: '', hidden: false };
+    return { quote: '', name: '', role: '', photo: '', hidden: false };
+  }
+  /** The block to edit: the real one if present, else a detached default that is attached on the first edit. */
+  function trustBlock(k) {
+    if (S.content[k]) return S.content[k];
+    if (!S.pending.has(k)) S.pending.set(k, trustDefaults(k));
+    return S.pending.get(k);
+  }
+  function attachPending() {
+    if (!S.content) return;
+    S.pending.forEach((b, k) => { if (!S.content[k]) S.content[k] = b; });
+    S.pending.clear();
   }
   /** Makes section/video ids non-empty and unique. Returns an error string or ''. */
   function prepareForPublish() {
@@ -307,6 +355,7 @@
 
   // ------------------------------------------------------------------ dirty tracking + live preview
   function markDirty() {
+    attachPending();
     S.dirty = ser(S.content) !== S.baseline;
     S.override = null;
     renderFooter();
@@ -609,7 +658,7 @@
     D.body = h('div', { class: 'adm-body' });
     D.status = h('div', { class: 'adm-status', role: 'status', 'aria-live': 'polite' });
     D.publish = h('button', { type: 'button', class: 'adm-btn adm-btn--primary', onclick: publish, text: 'Publică' });
-    const tabs = [['site', 'Site'], ['sections', 'Secțiuni'], ['settings', 'Setări']];
+    const tabs = [['site', 'Site'], ['sections', 'Secțiuni'], ['trust', 'Încredere'], ['settings', 'Setări']];
     const tablist = h('div', { class: 'adm-tabs', role: 'tablist' });
     D.tabs = tabs.map(([id, label]) => {
       const b = h('button', { type: 'button', class: 'adm-tab', role: 'tab', 'data-tab': id, text: label, onclick: () => { S.tab = id; renderAll(); D.body.scrollTop = 0; } });
@@ -645,7 +694,8 @@
   function renderTab(keepScroll) {
     const top = keepScroll ? D.body.scrollTop : 0;
     D.tabs.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
-    const node = S.tab === 'site' ? tabSite() : S.tab === 'sections' ? tabSections() : tabSettings();
+    S.pending.clear();
+    const node = S.tab === 'site' ? tabSite() : S.tab === 'sections' ? tabSections() : S.tab === 'trust' ? tabTrust() : tabSettings();
     D.body.replaceChildren(node);
     D.body.scrollTop = top;
   }
@@ -798,6 +848,38 @@
   function iconBtn(glyph, title, onclick, disabled, danger) {
     return h('button', { type: 'button', class: 'adm-icon-btn' + (danger ? ' adm-icon-btn--danger' : ''), title, 'aria-label': title, onclick, disabled, text: glyph });
   }
+  const EYE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="adm-eye-slash" d="M4 4l16 16"/></svg>';
+  /** Eye toggle bound to obj.hidden. onToggle(hidden) lets the caller restyle the card. */
+  function eyeBtn(obj, onToggle) {
+    const b = h('button', { type: 'button', class: 'adm-icon-btn adm-eye' });
+    b.innerHTML = EYE_SVG; // static, trusted markup
+    const paint = () => {
+      const hid = !!obj.hidden;
+      b.classList.toggle('adm-eye--off', hid);
+      b.setAttribute('aria-label', hid ? 'Arată' : 'Ascunde');
+      b.title = hid ? 'Arată' : 'Ascunde';
+      b.setAttribute('aria-pressed', String(hid));
+      if (onToggle) onToggle(hid);
+    };
+    b.addEventListener('click', () => { obj.hidden = !obj.hidden; paint(); markDirty(); });
+    paint();
+    return b;
+  }
+  /** "Vizibil" / "Ascuns" toggle bound to obj.hidden. */
+  function visBtn(obj, onToggle) {
+    const b = h('button', { type: 'button', class: 'adm-btn adm-btn--sm adm-vis' });
+    const paint = () => {
+      const hid = !!obj.hidden;
+      b.textContent = hid ? 'Ascuns' : 'Vizibil';
+      b.classList.toggle('adm-vis--off', hid);
+      b.setAttribute('aria-pressed', String(!hid));
+      if (onToggle) onToggle(hid);
+    };
+    b.addEventListener('click', () => { obj.hidden = !obj.hidden; paint(); markDirty(); });
+    paint();
+    return b;
+  }
+  const hiddenBadge = () => h('span', { class: 'adm-badge adm-badge--hidden', text: 'ascuns' });
   function move(arr, i, d) {
     const j = i + d;
     if (j < 0 || j >= arr.length) return;
@@ -891,6 +973,8 @@
     const secs = S.content.sections;
     const open = S.expandedSections.has(sec);
     const titleSpan = h('span', { class: 'adm-card-title', text: sec.title || '(fără titlu)' });
+    const secBadge = hiddenBadge();
+    let card;
     const head = h(
       'div',
       { class: 'adm-card-head' },
@@ -899,8 +983,10 @@
         { type: 'button', class: 'adm-card-toggle', 'aria-expanded': String(open), onclick: () => { toggleSet(S.expandedSections, sec); renderTab(true); } },
         h('span', { class: 'adm-chev' }),
         titleSpan,
-        h('span', { class: 'adm-badge', text: String(sec.videos.length) })
+        h('span', { class: 'adm-badge', text: String(sec.videos.length) }),
+        secBadge
       ),
+      visBtn(sec, (hid) => { secBadge.hidden = !hid; if (card) card.classList.toggle('adm-dim', hid); }),
       iconBtn('↑', 'Mută secțiunea sus', () => move(secs, i, -1), i === 0),
       iconBtn('↓', 'Mută secțiunea jos', () => move(secs, i, 1), i === secs.length - 1),
       iconBtn('✕', 'Șterge secțiunea', () => {
@@ -912,7 +998,8 @@
         renderTab(true);
       }, false, true)
     );
-    const card = h('div', { class: 'adm-card' }, head);
+    card = h('div', { class: 'adm-card' }, head);
+    card.classList.toggle('adm-dim', !!sec.hidden);
     if (!open) return card;
 
     const idInput = h('input', { class: 'adm-input', value: sec.id, autocomplete: 'off', spellcheck: 'false' });
@@ -968,7 +1055,9 @@
     const open = S.expandedVideos.has(v);
     const mini = thumbBox(v, false);
     const titleSpan = h('span', { class: 'adm-card-title', text: v.title || '(fără titlu)' });
-    const card = h(
+    const vBadge = hiddenBadge();
+    let card;
+    card = h(
       'div',
       { class: 'adm-card adm-card--video' },
       h(
@@ -979,8 +1068,10 @@
           { type: 'button', class: 'adm-card-toggle', 'aria-expanded': String(open), onclick: () => { toggleSet(S.expandedVideos, v); renderTab(true); } },
           h('span', { class: 'adm-chev' }),
           mini.box,
-          titleSpan
+          titleSpan,
+          vBadge
         ),
+        eyeBtn(v, (hid) => { vBadge.hidden = !hid; if (card) card.classList.toggle('adm-dim', hid); }),
         iconBtn('↑', 'Mută sus', () => move(sec.videos, j, -1), j === 0),
         iconBtn('↓', 'Mută jos', () => move(sec.videos, j, 1), j === sec.videos.length - 1),
         iconBtn('✕', 'Șterge videoclipul', () => {
@@ -992,6 +1083,7 @@
         }, false, true)
       )
     );
+    card.classList.toggle('adm-dim', !!v.hidden);
     if (!open) return card;
 
     const big = thumbBox(v, true);
@@ -1012,6 +1104,113 @@
       )
     );
     return card;
+  }
+
+  // ------------------------------------------------------------------ tab: Trust blocks
+  function trustCard(title, b, ...kids) {
+    const badge = hiddenBadge();
+    let card;
+    card = h(
+      'div',
+      { class: 'adm-card adm-block' },
+      h('div', { class: 'adm-card-head adm-block-head' }, h('span', { class: 'adm-card-title', text: title }), badge, visBtn(b, (hid) => { badge.hidden = !hid; if (card) card.classList.toggle('adm-dim', hid); })),
+      h('div', { class: 'adm-card-body' }, ...kids)
+    );
+    card.classList.toggle('adm-dim', !!b.hidden);
+    return card;
+  }
+  /** Editable list of items. fields(item, updateTitle) returns the nodes of one item's body. */
+  function itemList(b, kind, summary, fields, emptyText, addText) {
+    const items = b.items;
+    const list = h('div', { class: 'adm-items' });
+    if (!items.length) list.append(h('div', { class: 'adm-empty', text: emptyText }));
+    items.forEach((it, i) => {
+      const titleSpan = h('span', { class: 'adm-card-title', text: summary(it) || '(gol)' });
+      const badge = hiddenBadge();
+      let card;
+      card = h(
+        'div',
+        { class: 'adm-card adm-card--video adm-item' },
+        h(
+          'div',
+          { class: 'adm-card-head' },
+          h('span', { class: 'adm-item-title' }, titleSpan, badge),
+          eyeBtn(it, (hid) => { badge.hidden = !hid; if (card) card.classList.toggle('adm-dim', hid); }),
+          iconBtn('↑', 'Mută sus', () => move(items, i, -1), i === 0),
+          iconBtn('↓', 'Mută jos', () => move(items, i, 1), i === items.length - 1),
+          iconBtn('✕', 'Șterge', () => {
+            if (!window.confirm(`Ștergi „${summary(it) || 'elementul'}” definitiv? (Dacă vrei doar să-l ascunzi, folosește ochiul.)`)) return;
+            items.splice(i, 1);
+            markDirty();
+            renderTab(true);
+          }, false, true)
+        ),
+        h('div', { class: 'adm-card-body' }, fields(it, () => { titleSpan.textContent = summary(it) || '(gol)'; }))
+      );
+      card.classList.toggle('adm-dim', !!it.hidden);
+      list.append(card);
+    });
+    return h(
+      'div',
+      { class: 'adm-sub' },
+      list,
+      h('button', { type: 'button', class: 'adm-btn adm-btn--sm', style: 'margin-top:10px', text: addText, onclick: () => { items.push(trustItemDefaults(kind)); markDirty(); renderTab(true); } })
+    );
+  }
+
+  function tabTrust() {
+    const av = trustBlock('availability');
+    const st = trustBlock('stats');
+    const cl = trustBlock('clients');
+    const te = trustBlock('testimonials');
+    const cf = trustBlock('contactForm');
+    return h(
+      'div',
+      { class: 'adm-pane' },
+      h('p', { class: 'adm-hint', style: 'margin:0 0 12px', text: 'Blocurile ascunse (sau elementele ascunse) nu apar pe site, dar rămân aici și le poți arăta oricând.' }),
+      trustCard('Disponibilitate', av, textField('Text', av, 'text', { placeholder: 'Disponibil pentru proiecte noi', hint: 'Apare ca o mică etichetă cu punct verde în prima pagină și deasupra contactului.' })),
+      trustCard(
+        'Cifre',
+        st,
+        itemList(st, 'stats', (it) => [it.value, it.label].filter(Boolean).join(' · '), (it, upd) => [
+          h('div', { class: 'adm-grid2' }, textField('Valoare', it, 'value', { placeholder: '2M+', onChange: upd }), textField('Etichetă', it, 'label', { placeholder: 'Vizualizări generate', onChange: upd })),
+        ], 'Nicio cifră încă.', '+ Adaugă cifră')
+      ),
+      trustCard(
+        'Am lucrat cu',
+        cl,
+        textField('Titlul blocului', cl, 'title', { placeholder: 'Worked with', hint: 'Lasă gol pentru titlul implicit („Worked with”).' }),
+        itemList(cl, 'clients', (it) => it.name, (it, upd) => [
+          textField('Nume', it, 'name', { onChange: upd }),
+          textField('Logo (imagine)', it, 'logo', { upload: 'image', placeholder: 'media/logo.png' }),
+          textField('Link (opțional)', it, 'url', { placeholder: 'https://…' }),
+        ], 'Niciun client încă.', '+ Adaugă client')
+      ),
+      trustCard(
+        'Testimoniale',
+        te,
+        h('p', { class: 'adm-hint', style: 'margin:0 0 10px', text: 'Folosește doar păreri reale, cu acordul clientului.' }),
+        textField('Titlul blocului', te, 'title', { placeholder: 'Kind words', hint: 'Lasă gol pentru titlul implicit („Kind words”).' }),
+        itemList(te, 'testimonials', (it) => it.name || (it.quote || '').slice(0, 40), (it, upd) => [
+          textField('Citat', it, 'quote', { textarea: true, rows: 3, onChange: upd }),
+          h('div', { class: 'adm-grid2' }, textField('Nume', it, 'name', { onChange: upd }), textField('Rol', it, 'role', { placeholder: 'Producer, Brand' })),
+          textField('Fotografie (opțional)', it, 'photo', { upload: 'image', placeholder: 'media/persoana.jpg' }),
+        ], 'Niciun testimonial încă.', '+ Adaugă testimonial')
+      ),
+      trustCard(
+        'Formular de contact',
+        cf,
+        h(
+          'div',
+          { class: 'adm-note', style: 'margin-bottom:14px' },
+          h('p', null, 'Cum obții cheia: intră pe ', h('a', { href: 'https://web3forms.com', target: '_blank', rel: 'noopener noreferrer', text: 'web3forms.com' }), ', introdu adresa ta de email, iar cheia (access key) îți vine pe email. Lipește-o mai jos.'),
+          h('p', { text: 'Cheia poate fi publică fără risc: permite doar trimiterea mesajelor din formular către emailul tău.' }),
+          h('p', { text: 'Formularul apare pe site doar când cheia este completată și blocul este „Vizibil”.' })
+        ),
+        textField('Access key', cf, 'accessKey', { placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' }),
+        textField('Text buton', cf, 'buttonText', { placeholder: 'Send message' })
+      )
+    );
   }
 
   // ------------------------------------------------------------------ tab: Settings
