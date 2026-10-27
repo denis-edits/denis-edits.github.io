@@ -1,19 +1,31 @@
 {
   "site": {
-    "name": "Your Name",
+    "name": "Denis",
     "role": "Video Editor",
     "tagline": "Cuts that move people.",
     "intro": "I shape raw footage into stories with rhythm, emotion and a pulse. Music videos, commercials, reels, weddings and short films - cut with intent, graded with taste.",
     "showreel": "https://www.youtube.com/watch?v=eRsGyueVLvQ",
     "about": "I am a video editor obsessed with the invisible craft: the cut that lands on the beat, the sound design that makes a frame breathe, the grade that sets the mood before anyone speaks.\nFrom fast-paced social content to long-form storytelling, I work closely with directors, artists and brands to turn hours of footage into something people actually remember.\nAvailable for freelance projects worldwide. Tell me about your next one.",
-    "email": "you@example.com",
+    "email": "denys702@yahoo.ro",
     "socials": [
-      { "label": "Instagram", "url": "https://instagram.com/" },
-      { "label": "YouTube", "url": "https://youtube.com/" },
-      { "label": "Vimeo", "url": "https://vimeo.com/" },
-      { "label": "LinkedIn", "url": "https://linkedin.com/" }
+      {
+        "label": "Instagram",
+        "url": "https://instagram.com/"
+      },
+      {
+        "label": "YouTube",
+        "url": "https://youtube.com/"
+      },
+      {
+        "label": "Vimeo",
+        "url": "https://vimeo.com/"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://linkedin.com/"
+      }
     ],
-    "accent": "#ff3b5c"
+    "accent": "#0400ff"
   },
   "sections": [
     {
@@ -124,43 +136,6 @@
           "year": "2025",
           "client": "Sample",
           "vertical": true
-        }
-      ]
-    },
-    {
-      "id": "weddings-events",
-      "title": "Weddings & Events",
-      "description": "The big day, told the way it felt.",
-      "videos": [
-        {
-          "id": "v-1730000000010",
-          "title": "Cinematic Highlight Film",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://vimeo.com/76979871",
-          "thumbnail": "",
-          "year": "2026",
-          "client": "Sample Couple",
-          "vertical": false
-        },
-        {
-          "id": "v-1730000000011",
-          "title": "Event Aftermovie",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://vimeo.com/1084537",
-          "thumbnail": "",
-          "year": "2025",
-          "client": "Sample Event",
-          "vertical": false
-        },
-        {
-          "id": "v-1730000000012",
-          "title": "Ceremony Teaser",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-          "thumbnail": "",
-          "year": "2025",
-          "client": "Sample Couple",
-          "vertical": false
         }
       ]
     },
