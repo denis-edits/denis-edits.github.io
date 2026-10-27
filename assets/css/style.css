@@ -394,6 +394,7 @@ main { overflow-x: clip; }
   background-size: 100% 9px, 100% 5px; background-position: 0 100%, 0 100%; background-repeat: no-repeat;
 }
 .tl-mark { position: absolute; top: 3px; padding-left: 4px; font-size: 0.58rem; color: #9a9aa3; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tl-now { display: none; }
 .tl-hdr {
   display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--rv-hdr);
   border-right: 1px solid #000; border-bottom: 1px solid #000; font-size: 0.62rem; color: #a7a7b0; white-space: nowrap; overflow: hidden;
@@ -423,10 +424,13 @@ main { overflow-x: clip; }
 .tl-aclip svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tl-aclip.is-title { background: #24452b; color: #5f9c67; }
 
-/* playhead: red line with the marker sitting in the ruler */
-.tl-head { position: absolute; top: 0; bottom: 0; left: 0; width: 0; pointer-events: none; will-change: transform; z-index: 3; }
-.tl-head::before { content: ''; position: absolute; top: 2px; left: -6px; width: 12px; height: 14px; background: var(--rv-playhead); clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%); }
-.tl-head::after { content: ''; position: absolute; top: 14px; bottom: 0; left: -0.5px; width: 1px; background: var(--rv-playhead); }
+/* playhead: red line with the marker sitting in the ruler; the 16px-wide strip around it is the drag handle */
+.tl-head { position: absolute; top: 0; bottom: 0; left: -8px; width: 16px; cursor: ew-resize; touch-action: none; will-change: transform; z-index: 3; }
+.tl-head::before { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 14px; background: var(--rv-playhead); clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%); }
+.tl-head::after { content: ''; position: absolute; top: 14px; bottom: 0; left: 7.5px; width: 1px; background: var(--rv-playhead); }
+.tl-head:hover::before, .scrubbing .tl-head::before { transform: scaleY(1.15); transform-origin: top; }
+.tl-ruler { cursor: col-resize; touch-action: none; }
+.timeline.scrubbing, .timeline.scrubbing * { cursor: ew-resize; user-select: none; }
 @media (max-width: 600px) {
   :root { --tl-h: 62px; }
   .timeline { --hdr-w: 40px; grid-template-rows: 18px 1fr; }
@@ -435,6 +439,14 @@ main { overflow-x: clip; }
   .tl-mark { display: none; }
   .tl-hdr span, .tl-hdr-a, .tl-lane-a { display: none; }
   .tl-hdr { justify-content: center; padding: 0; }
+  .tl-now {
+    display: block; grid-column: 1 / -1; grid-row: 1; align-self: center; padding-left: 8px; z-index: 1; pointer-events: none;
+    font-size: 0.62rem; font-weight: 600; color: #f2f2f4; text-shadow: 0 0 4px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%;
+  }
+  /* a wider grab strip for fingers */
+  .tl-head { left: -14px; width: 28px; }
+  .tl-head::before { left: 8px; }
+  .tl-head::after { left: 13.5px; }
 }
 
 /* ---------- lightbox player ---------- */

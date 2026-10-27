@@ -380,7 +380,7 @@
     const total = sections.reduce((n, s) => n + (Array.isArray(s.videos) ? s.videos.length : 0), 0);
     const stats = $('#about-stats');
     stats.replaceChildren();
-    [[String(sections.length).padStart(2, '0'), 'Genres'], [String(total).padStart(2, '0'), 'Films']].forEach(([n, l]) => {
+    [[String(sections.length).padStart(2, '0'), 'Reels'], [String(total).padStart(2, '0'), 'Clips']].forEach(([n, l]) => {
       const box = h('div', 'stat');
       box.appendChild(h('dd', 'stat-num', n));
       box.appendChild(h('dt', 'stat-label', l));
@@ -665,8 +665,10 @@
     if (frame !== tlFrame) { tlFrame = frame; $('#tl-tc').textContent = toTimecode(frame, true); }
     tlClips.forEach(({ el, link }) => {
       const top = el.getBoundingClientRect().top + window.scrollY;
-      if (y >= top && y < top + el.offsetHeight) link.setAttribute('aria-current', 'true');
-      else link.removeAttribute('aria-current');
+      if (y >= top && y < top + el.offsetHeight) {
+        link.setAttribute('aria-current', 'true');
+        $('#tl-now').textContent = link.title; // phones: clips are too narrow for their names
+      } else link.removeAttribute('aria-current');
     });
   }
 
@@ -675,6 +677,27 @@
     if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(); });
   }, { passive: true });
   window.addEventListener('resize', () => requestAnimationFrame(layoutTimeline));
+
+  // Scrubbing: drag the playhead, or press/drag on the ruler, and the page scrolls with it (mouse and touch).
+  function scrubTo(clientX) {
+    const r = $('#tl-clips').getBoundingClientRect();
+    const f = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    window.scrollTo({ top: f * document.documentElement.scrollHeight - window.innerHeight / 2, behavior: 'instant' });
+  }
+  [$('#tl-ruler'), $('#tl-head')].forEach((handle) => {
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      $('#timeline').classList.add('scrubbing');
+      scrubTo(e.clientX);
+    });
+    handle.addEventListener('pointermove', (e) => { if (handle.hasPointerCapture(e.pointerId)) scrubTo(e.clientX); });
+    const stop = () => $('#timeline').classList.remove('scrubbing');
+    handle.addEventListener('pointerup', stop);
+    handle.addEventListener('pointercancel', stop);
+  });
+
   // images and fonts change the page height after render
   if ('ResizeObserver' in window) new ResizeObserver(() => requestAnimationFrame(layoutTimeline)).observe(document.body);
 
