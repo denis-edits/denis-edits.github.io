@@ -36,13 +36,13 @@
       "videos": [
         {
           "id": "v-1793160795565-cpec",
-          "title": "Videoclip nou",
+          "title": "Starting the course",
           "description": "",
           "url": "media/1793160844685-794d7985-e805-4bfe-8091-6407f2b0e6e8.mov",
           "thumbnail": "",
           "year": "2026",
           "client": "",
-          "vertical": false
+          "vertical": true
         }
       ]
     },
