@@ -23,8 +23,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=19">
-  <link rel="stylesheet" href="assets/css/admin.css?v=19">
+  <link rel="stylesheet" href="assets/css/style.css?v=20">
+  <link rel="stylesheet" href="assets/css/admin.css?v=20">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -40,7 +40,11 @@
       <ul class="vw-list" id="vw-list" role="listbox" aria-label="Showreels" hidden></ul>
     </div>
     <span class="vw-hint hud-dim" id="vw-hint" aria-hidden="true">Click the picture to watch it full, with sound</span>
-    <span class="vw-right" aria-hidden="true"><span class="hud-dim">Fit &#9662;</span><span class="timecode" id="timecode">01:00:00:00</span></span>
+    <span class="vw-right">
+      <!-- editing sound effects (whoosh, cut, click), synthesised in the browser; off until the visitor turns them on -->
+      <button class="vw-sound" id="vw-sound" type="button" aria-pressed="false"><span class="vw-sound-ico" aria-hidden="true"><i></i><i></i><i></i></span><span id="vw-sound-text">Sound: Off</span></button>
+      <span class="hud-dim" aria-hidden="true">Fit &#9662;</span><span class="timecode" id="timecode" aria-hidden="true">01:00:00:00</span>
+    </span>
   </header>
 
   <main id="main">
@@ -167,6 +171,9 @@
   </footer>
 
   <!-- Edit timeline: scroll = playhead, sections = clips on V1 (built by site.js) -->
+  <!-- block transition between sections: a wave of blocks, like a stylised cut (drawn by site.js) -->
+  <canvas class="cut-blocks" id="cut-blocks" aria-hidden="true"></canvas>
+
   <nav class="timeline" id="timeline" aria-label="Timeline">
     <span class="tl-tc" id="tl-tc" aria-hidden="true">01:00:00:00</span>
     <div class="tl-ruler" id="tl-ruler" aria-hidden="true"></div>
@@ -195,7 +202,7 @@
 
   <noscript><p class="noscript">This portfolio needs JavaScript to load its content.</p></noscript>
 
-  <script src="assets/js/site.js?v=19" defer></script>
-  <script src="assets/js/admin.js?v=19" defer></script>
+  <script src="assets/js/site.js?v=20" defer></script>
+  <script src="assets/js/admin.js?v=20" defer></script>
 </body>
 </html>

@@ -722,6 +722,8 @@
   const PX_PER_FRAME = 4;  // page runtime: 4 px of scroll = 1 frame at 24 fps
   let tlClips = [];        // [{ el, link, audio }]
   let tlFrame = -1;
+  let tlCurrent = -1;     // index of the clip under the playhead
+  let tlLastY = 0;        // scroll position at the last update, for the cut direction
 
   // A made-up waveform, the same for the same seed on every load.
   function waveSvg(seed) {
@@ -793,24 +795,31 @@
     updatePlayhead();
   }
 
-  function updatePlayhead() {
+  // fromScroll: only a real scroll is a cut; a relayout (images, fonts, resize) just moves the clips
+  function updatePlayhead(fromScroll) {
     const p = Math.min(1, Math.max(0, window.scrollY / maxScroll()));
     const lane = $('#tl-clips');
     $('#tl-head').style.transform = 'translateX(' + (lane.offsetLeft + p * lane.clientWidth) + 'px)';
     const frame = Math.round(window.scrollY / PX_PER_FRAME);
     if (frame !== tlFrame) { tlFrame = frame; $('#tl-tc').textContent = toTimecode(frame, true); }
+    let current = -1;
     tlClips.forEach(({ link, start, end }, i) => {
       const last = i === tlClips.length - 1;
       if (p >= start && (p < end || (last && p <= end))) {
+        current = i;
         link.setAttribute('aria-current', 'true');
         $('#tl-now').textContent = link.title; // phones: clips are too narrow for their names
       } else link.removeAttribute('aria-current');
     });
+    // entering another section by scrolling is a cut: blocks + whoosh
+    if (fromScroll && current !== -1 && tlCurrent !== -1 && current !== tlCurrent) blockCut(window.scrollY >= tlLastY ? 1 : -1);
+    if (current !== -1) tlCurrent = current;
+    tlLastY = window.scrollY;
   }
 
   let tlRaf = 0;
   window.addEventListener('scroll', () => {
-    if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(); });
+    if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(true); });
   }, { passive: true });
   window.addEventListener('resize', () => requestAnimationFrame(layoutTimeline));
 
@@ -975,6 +984,122 @@
     lastFocus = null;
   }
 
+  /* ---------- editing sound effects: synthesised with Web Audio (no files to load), off until switched on ---------- */
+
+  const sfx = { on: false, ctx: null, noise: null };
+
+  function sfxContext() {
+    if (!sfx.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      sfx.ctx = new AC();
+      // one second of white noise, reused by every whoosh and cut
+      sfx.noise = sfx.ctx.createBuffer(1, sfx.ctx.sampleRate, sfx.ctx.sampleRate);
+      const d = sfx.noise.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (sfx.ctx.state === 'suspended') sfx.ctx.resume();
+    return sfx.ctx;
+  }
+
+  // whoosh: band-passed noise swept up and down; cut: a noise click on a low thump; tick: a short blip
+  function playSfx(kind) {
+    if (!sfx.on) return;
+    const ctx = sfxContext();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const env = (node, peak, attack, release) => {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + attack + release);
+      node.connect(g).connect(ctx.destination);
+    };
+    const noise = (dur) => { const s = ctx.createBufferSource(); s.buffer = sfx.noise; s.start(t, Math.random() * 0.5, dur); return s; };
+    if (kind === 'whoosh') {
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.Q.value = 1.4;
+      f.frequency.setValueAtTime(350, t);
+      f.frequency.exponentialRampToValueAtTime(2800, t + 0.16);
+      f.frequency.exponentialRampToValueAtTime(500, t + 0.42);
+      noise(0.45).connect(f);
+      env(f, 0.32, 0.15, 0.28);
+    } else if (kind === 'cut') {
+      const f = ctx.createBiquadFilter();
+      f.type = 'highpass'; f.frequency.value = 2200;
+      noise(0.04).connect(f);
+      env(f, 0.22, 0.003, 0.03);
+      const o = ctx.createOscillator();
+      o.frequency.setValueAtTime(120, t);
+      o.frequency.exponentialRampToValueAtTime(48, t + 0.1);
+      o.start(t); o.stop(t + 0.14);
+      env(o, 0.35, 0.004, 0.11);
+    } else if (kind === 'tick') {
+      const o = ctx.createOscillator();
+      o.type = 'square'; o.frequency.value = 1700;
+      o.start(t); o.stop(t + 0.03);
+      env(o, 0.05, 0.002, 0.022);
+    }
+  }
+
+  function setSfx(on) {
+    sfx.on = on;
+    $('#vw-sound').setAttribute('aria-pressed', String(on));
+    $('#vw-sound-text').textContent = on ? 'Sound: On' : 'Sound: Off';
+    if (on) playSfx('cut'); // the click that turns it on is the gesture that unlocks audio
+  }
+
+  /* ---------- block cut: a wave of blocks across the screen when the playhead enters another section ---------- */
+
+  let cutRaf = 0;
+  let lastCut = 0;
+
+  function blockCut(dir) {
+    const now = performance.now();
+    if (now - lastCut < 450) return; // a fast scrub or a long jump crosses several sections: one cut
+    lastCut = now;
+    playSfx('whoosh');
+    if (reduceMotion) return;
+    const cv = $('#cut-blocks');
+    const w = cv.clientWidth, hgt = cv.clientHeight;
+    if (!w || !hgt) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(hgt * dpr);
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const css = getComputedStyle(document.documentElement);
+    const colors = { bg: css.getPropertyValue('--bg').trim(), surface: css.getPropertyValue('--surface-2').trim(), accent: css.getPropertyValue('--accent').trim() };
+    const size = w < 600 ? 56 : 88;
+    const cols = Math.ceil(w / size), rows = Math.ceil(hgt / size);
+    // each block shows for a few frames; the wave runs in the scroll direction, with some scatter
+    const blocks = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const along = dir >= 0 ? r / rows : 1 - r / rows;
+        const rnd = Math.random();
+        blocks.push({
+          x: c * size, y: r * size,
+          start: along * 0.22 + Math.random() * 0.12,
+          hold: 0.06 + Math.random() * 0.09,
+          fill: rnd < 0.05 ? colors.accent : rnd < 0.3 ? colors.surface : colors.bg,
+        });
+      }
+    }
+    const end = 0.22 + 0.12 + 0.15;
+    cancelAnimationFrame(cutRaf);
+    const draw = (ts) => {
+      const t = (ts - now) / 1000;
+      ctx.clearRect(0, 0, w, hgt);
+      if (t >= end) return;
+      blocks.forEach((b) => {
+        if (t >= b.start && t < b.start + b.hold) { ctx.fillStyle = b.fill; ctx.fillRect(b.x, b.y, size + 1, size + 1); }
+      });
+      cutRaf = requestAnimationFrame(draw);
+    };
+    cutRaf = requestAnimationFrame(draw);
+  }
+
   /* ---------- full view: the text flies off to the sides and the showreel plays with sound ---------- */
 
   let fullViewY = 0;
@@ -984,6 +1109,7 @@
     $('#vw-hint').textContent = on ? 'Click again or scroll to bring the text back' : 'Click the picture to watch it full, with sound';
     deck.sound = on;
     if (deck.ctl && deck.ctl.mute) deck.ctl.mute(!on);
+    playSfx('whoosh');
     if (on) {
       fullViewY = window.scrollY;
       if (deck.dir !== 1) deckPlay();
@@ -1020,7 +1146,12 @@
     $('#tr-stop').addEventListener('click', deckStop);
     $('#tr-play').addEventListener('click', deckPlay);
     $('#tr-loop').addEventListener('click', () => setLoop(!deck.loop));
+    document.querySelectorAll('.tr-key').forEach((k) => k.addEventListener('click', () => playSfx('tick')));
     setLoop(true);
+
+    // editing sounds toggle; a click on a timeline clip is a cut
+    $('#vw-sound').addEventListener('click', () => setSfx(!sfx.on));
+    $('#tl-clips').addEventListener('click', (e) => { if (e.target.closest('.tl-clip')) playSfx('cut'); });
     // the scrubber seeks the deck
     const scrub = $('#tr-scrub');
     const seekAt = (x) => {
