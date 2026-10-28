@@ -1123,7 +1123,9 @@
       if (r.bottom < -vh * 0.5 || r.top > vh * 1.5) return;
       const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - mid) / mid)); // -1 above, 0 middle, 1 below
       if (kind === 'title') {
-        el.style.transform = 'translate3d(' + (p * (phone ? 10 : 16)).toFixed(2) + 'vw,0,0)';
+        // slides within its frame (.genre-title-wrap fades the edges) and dims away from the middle
+        el.style.transform = 'translate3d(' + (p * (phone ? 6 : 9)).toFixed(2) + 'vw,0,0)';
+        el.style.opacity = Math.max(0.2, 1 - Math.max(0, Math.abs(p) - 0.25) * 1.1).toFixed(2);
         return;
       }
       const g = box.parentElement.getBoundingClientRect();
