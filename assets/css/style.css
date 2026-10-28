@@ -154,10 +154,19 @@ ul { margin: 0; padding: 0; list-style: none; }
 .hero { cursor: pointer; }
 .hero-top, .transport { cursor: auto; }
 .vw-hint { font-size: 0.66rem; }
-/* clean view: a click on the picture hides the text over it; the controls, timeline and scroll keep working */
-.hero-body, .scroll-cue, .hero-shade { transition: opacity calc(var(--frame) * 3) steps(3); }
-.hero.clean .hero-body, .hero.clean .scroll-cue { opacity: 0; pointer-events: none; }
-.hero.clean .hero-shade { opacity: 0.35; }
+/* full view: a click on the picture sends the text flying off to the sides and turns the sound on;
+   a click again, or a scroll, brings it back. `translate` (not `transform`) so it composes with the
+   intro's cut-in animations, which keep their final transform. */
+.hero-role, .hero-tagline, .hero-side, .scroll-cue { transition: translate 0.8s cubic-bezier(0.76, 0, 0.24, 1); }
+.hero-shade { transition: opacity 0.6s ease; }
+.hero.clean .hero-role, .hero.clean .hero-tagline { translate: -115vw 0; }
+.hero.clean .hero-side, .hero.clean .scroll-cue { translate: 115vw 0; }
+.hero.clean .hero-tagline { transition-delay: 0.05s; }
+.hero.clean .hero-side { transition-delay: 0.1s; }
+.hero:not(.clean) .hero-role { transition-delay: 0.1s; }
+.hero:not(.clean) .hero-tagline { transition-delay: 0.05s; }
+.hero.clean .hero-body { pointer-events: none; }
+.hero.clean .hero-shade { opacity: 0; }
 @media (max-width: 860px) { .vw-hint { display: none; } }
 @media (max-width: 600px) { .tr-keys { justify-content: flex-start; } }
 

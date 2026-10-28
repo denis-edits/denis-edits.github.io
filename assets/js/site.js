@@ -216,8 +216,9 @@
 
   /* ---------- hero deck: the showreel behind the hero, driven by the transport (and J / K / L) ---------- */
 
-  // ctl = { play, pause, seek(s), time(), duration() } once a player is ready; dir: -1 reverse, 0 stopped, 1 play
-  const deck = { ctl: null, reel: null, dir: 0, loop: true, revTimer: 0, wantPlay: false, mounted: false };
+  // ctl = { play, pause, seek(s), time(), duration(), mute(on) } once a player is ready;
+  // dir: -1 reverse, 0 stopped, 1 play; sound: unmuted (full view only)
+  const deck = { ctl: null, reel: null, dir: 0, loop: true, revTimer: 0, wantPlay: false, mounted: false, sound: false };
 
   let ytApi = null;
   function loadYouTubeApi() {
@@ -239,7 +240,7 @@
     media.dataset.reel = key;
     media.replaceChildren();
     stopReverse();
-    Object.assign(deck, { ctl: null, reel, dir: 0, wantPlay: false, mounted: false });
+    Object.assign(deck, { ctl: null, reel, dir: 0, wantPlay: false, mounted: false, sound: false });
     // phones and reduced motion: a still until someone presses play
     const auto = !reduceMotion && window.matchMedia('(min-width: 861px) and (pointer: fine)').matches;
 
@@ -255,6 +256,7 @@
         seek: (s) => { v.currentTime = s; },
         time: () => v.currentTime || 0,
         duration: () => v.duration || 0,
+        mute: (on) => { v.muted = on; },
       };
       if (auto) deckPlay();
     } else if (reel.type === 'youtube') {
@@ -282,7 +284,7 @@
         playerVars: { autoplay: 1, mute: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1, disablekb: 1, iv_load_policy: 3, fs: 0 },
         events: {
           onReady: (e) => {
-            e.target.mute();
+            if (deck.sound) e.target.unMute(); else e.target.mute();
             deck.ctl = {
               play: () => p.playVideo(),
               pause: () => p.pauseVideo(),
@@ -290,6 +292,7 @@
               time: () => p.getCurrentTime() || 0,
               duration: () => p.getDuration() || 0,
               restart: () => p.loadVideoById({ videoId: reel.id, startSeconds: 0 }), // seek+play no longer works once ENDED
+              mute: (on) => { if (on) p.mute(); else { p.unMute(); p.setVolume(100); } },
             };
             if (deck.wantPlay) deckPlay();
           },
@@ -972,6 +975,21 @@
     lastFocus = null;
   }
 
+  /* ---------- full view: the text flies off to the sides and the showreel plays with sound ---------- */
+
+  let fullViewY = 0;
+
+  function setFullView(on) {
+    $('#hero').classList.toggle('clean', on);
+    $('#vw-hint').textContent = on ? 'Click again or scroll to bring the text back' : 'Click the picture to watch it full, with sound';
+    deck.sound = on;
+    if (deck.ctl && deck.ctl.mute) deck.ctl.mute(!on);
+    if (on) {
+      fullViewY = window.scrollY;
+      if (deck.dir !== 1) deckPlay();
+    }
+  }
+
   /* ---------- static event wiring (once) ---------- */
 
   function wire() {
@@ -981,12 +999,17 @@
       const site = (content && content.site) || {};
       openPlayer({ title: $('#vw-title').textContent || 'Showreel', url: selectedReel, client: str(site.name), vertical: false });
     });
-    // clicking the picture (or the text over it) hides / shows the text; controls, timeline and scroll keep working
+    // clicking the picture (or the text over it) toggles full view; scrolling away from it ends it and stops the reel
     $('#hero').addEventListener('click', (e) => {
       if (e.target.closest('a, button, .transport') || String(window.getSelection())) return;
-      const clean = $('#hero').classList.toggle('clean');
-      $('#vw-hint').textContent = clean ? 'Click the picture to show the text' : 'Click the picture to hide the text';
+      setFullView(!$('#hero').classList.contains('clean'));
     });
+    window.addEventListener('scroll', () => {
+      if ($('#hero').classList.contains('clean') && Math.abs(window.scrollY - fullViewY) > 40) {
+        setFullView(false);
+        deckStop();
+      }
+    }, { passive: true });
 
     // showreel dropdown in the viewer bar
     $('#vw-name').addEventListener('click', () => setReelPicker($('#vw-list').hidden));
@@ -1025,6 +1048,7 @@
       }
       if (e.key === 'Escape') {
         if (!player.hidden) closePlayer();
+        else if ($('#hero').classList.contains('clean')) setFullView(false);
         else if (!$('#vw-list').hidden) { setReelPicker(false); $('#vw-name').focus(); }
       } else if (e.key === 'Tab' && !player.hidden) {
         // keep focus inside the dialog
