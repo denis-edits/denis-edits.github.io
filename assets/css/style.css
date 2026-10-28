@@ -150,39 +150,6 @@ ul { margin: 0; padding: 0; list-style: none; }
 /* phones: the bars alone, so the showreel name keeps its room (the label stays for screen readers) */
 @media (max-width: 600px) { #vw-sound-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } }
 
-/* clip cut between sections: a wall of 3D tiles, each carrying its slice of a frame from the reel being
-   entered. Tiles flip in from the scroll side, hold the picture for a beat, then flip away; a slate names
-   the reel. Built per cut by site.js (blockCut); --from / --to set the flip direction. */
-.cut-tiles {
-  position: fixed; left: 0; right: 0; top: var(--nav-h); bottom: var(--tl-h); z-index: 90;
-  pointer-events: none; overflow: hidden; perspective: 1100px; visibility: hidden;
-}
-.cut-tiles.run { visibility: visible; }
-.cut-tile {
-  position: absolute; background-color: var(--surface-2); background-repeat: no-repeat;
-  backface-visibility: hidden; transform: rotateX(var(--from)); opacity: 0; will-change: transform;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55);
-}
-/* shading: dark while edge-on, lit when facing the viewer */
-.cut-tile::after { content: ''; position: absolute; inset: 0; background: #000; opacity: 0.8; }
-.cut-tiles.run .cut-tile { animation: tileFlip 0.62s cubic-bezier(0.65, 0, 0.35, 1) var(--delay) both; }
-.cut-tiles.run .cut-tile::after { animation: tileShade 0.62s cubic-bezier(0.65, 0, 0.35, 1) var(--delay) both; }
-@keyframes tileFlip {
-  0% { transform: rotateX(var(--from)) translateZ(-80px); opacity: 0; }
-  10% { opacity: 1; }
-  42%, 60% { transform: rotateX(0deg) translateZ(0); opacity: 1; }
-  92% { opacity: 1; }
-  100% { transform: rotateX(var(--to)) translateZ(-80px); opacity: 0; }
-}
-@keyframes tileShade { 0% { opacity: 0.85; } 42%, 60% { opacity: 0.08; } 100% { opacity: 0.85; } }
-.cut-slate {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1; opacity: 0;
-  padding: 8px 14px; background: rgba(24, 24, 27, 0.88); border: 1px solid rgba(255, 255, 255, 0.18); border-left: 3px solid var(--accent);
-  font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; color: var(--text);
-  max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis;
-}
-.cut-tiles.run .cut-slate { animation: slateIn 0.95s steps(1) both; }
-@keyframes slateIn { 0%, 30% { opacity: 0; } 31%, 72% { opacity: 1; } 73%, 100% { opacity: 0; } }
 .hud-dim { color: var(--muted); }
 .timecode { font-variant-numeric: tabular-nums; color: #ff8a3d; font-weight: 600; font-size: 0.82rem; }
 
@@ -337,6 +304,8 @@ main { overflow-x: clip; }
 .grid-empty { grid-column: 1 / -1; padding: 48px 24px; border: 1px dashed var(--line-strong); text-align: center; color: var(--muted); font-family: var(--font-mono); font-size: 0.8rem; }
 
 .card-wrap { min-width: 0; }
+/* moved in 3D by the scroll (site.js updateScrollMotion) */
+.card, .genre-title { will-change: transform; }
 .card { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; position: relative; }
 .card:disabled { cursor: default; opacity: 0.6; }
 .card-media { position: relative; display: block; overflow: hidden; aspect-ratio: 16 / 9; background: var(--surface-2); border: 1px solid var(--line); }

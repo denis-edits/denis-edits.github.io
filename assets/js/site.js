@@ -723,7 +723,6 @@
   let tlClips = [];        // [{ el, link, audio }]
   let tlFrame = -1;
   let tlCurrent = -1;     // index of the clip under the playhead
-  let tlLastY = 0;        // scroll position at the last update, for the cut direction
 
   // A made-up waveform, the same for the same seed on every load.
   function waveSvg(seed) {
@@ -795,7 +794,7 @@
     updatePlayhead();
   }
 
-  // fromScroll: only a real scroll is a cut; a relayout (images, fonts, resize) just moves the clips
+  // fromScroll: only a real scroll whooshes into a section; a relayout (images, fonts, resize) just moves the clips
   function updatePlayhead(fromScroll) {
     const p = Math.min(1, Math.max(0, window.scrollY / maxScroll()));
     const lane = $('#tl-clips');
@@ -811,17 +810,16 @@
         $('#tl-now').textContent = link.title; // phones: clips are too narrow for their names
       } else link.removeAttribute('aria-current');
     });
-    // entering another section by scrolling is a cut: blocks + whoosh
-    if (fromScroll && current !== -1 && tlCurrent !== -1 && current !== tlCurrent) blockCut(window.scrollY >= tlLastY ? 1 : -1, current);
+    // entering another section by scrolling: a whoosh (editing sounds on)
+    if (fromScroll && current !== -1 && tlCurrent !== -1 && current !== tlCurrent) sectionWhoosh();
     if (current !== -1) tlCurrent = current;
-    tlLastY = window.scrollY;
   }
 
   let tlRaf = 0;
   window.addEventListener('scroll', () => {
-    if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(true); });
+    if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(true); updateScrollMotion(); });
   }, { passive: true });
-  window.addEventListener('resize', () => requestAnimationFrame(layoutTimeline));
+  window.addEventListener('resize', () => requestAnimationFrame(() => { layoutTimeline(); updateScrollMotion(); }));
 
   // Scrubbing: drag the playhead, or press/drag on the ruler, and the page scrolls with it (mouse and touch).
   function scrubTo(clientX) {
@@ -917,7 +915,13 @@
     setupObservers();
     fitText();
     renderTimeline([{ label: 'Showreel', target: 'hero', thumb: parseVideo(selectedReel).thumb }].concat(navItems));
+    setupScrollMotion();
 
+    // a shared link to a section (#genre-commercials, #contact): the sections exist only now, so jump here
+    if (firstRender && location.hash.length > 1) {
+      const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (target) requestAnimationFrame(() => target.scrollIntoView({ behavior: 'instant' }));
+    }
     firstRender = false;
     document.dispatchEvent(new CustomEvent('portfolio:rendered'));
   }
@@ -1049,71 +1053,57 @@
     if (on) playSfx('cut'); // the click that turns it on is the gesture that unlocks audio
   }
 
-  /* ---------- clip cut: entering another section flips a wall of 3D tiles that carry a frame of that
-     section's footage, with a slate naming it, then flips them away to reveal the page (CSS 3D, no WebGL) ---------- */
+  /* ---------- scroll motion: the reels' cards and titles move in 3D with the scroll (no overlays) ----------
+     Each card is measured on its untransformed list item and its inner .card is moved: below the middle of
+     the screen it sits back in depth, tilted, and lower; it flattens as it reaches the middle, where it is
+     read, and tilts away again above. Columns travel at different speeds (parallax) and fan out to the
+     sides. Genre titles slide sideways through the frame like a strip through a viewer. */
 
+  let motionItems = [];
+
+  function setupScrollMotion() {
+    motionItems = [];
+    if (reduceMotion) return;
+    document.querySelectorAll('.genre').forEach((sec) => {
+      const title = sec.querySelector('.genre-title');
+      if (title) motionItems.push({ box: title.parentElement, el: title, kind: 'title' });
+      sec.querySelectorAll('.card-wrap').forEach((li) => motionItems.push({ box: li, el: li.firstElementChild, kind: 'card' }));
+    });
+    updateScrollMotion();
+  }
+
+  function updateScrollMotion() {
+    if (!motionItems.length) return;
+    const vh = window.innerHeight, mid = vh / 2;
+    const phone = window.innerWidth < 600;
+    motionItems.forEach(({ box, el, kind }) => {
+      const r = box.getBoundingClientRect();
+      if (r.bottom < -vh * 0.5 || r.top > vh * 1.5) return;
+      const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - mid) / mid)); // -1 above, 0 middle, 1 below
+      if (kind === 'title') {
+        el.style.transform = 'translate3d(' + (p * (phone ? 10 : 16)).toFixed(2) + 'vw,0,0)';
+        return;
+      }
+      const g = box.parentElement.getBoundingClientRect();
+      const c = g.width ? (r.left - g.left + r.width / 2) / g.width : 0.5; // 0 left column .. 1 right
+      const side = c * 2 - 1;
+      const depth = 0.6 + c * 0.9;
+      const rx = p * (phone ? 14 : 22);
+      const ry = -side * p * (phone ? 8 : 14);
+      const z = -Math.abs(p) * (phone ? 110 : 220);
+      const y = p * depth * (phone ? 40 : 90);
+      el.style.transform = 'perspective(1200px) translate3d(0,' + y.toFixed(1) + 'px,' + z.toFixed(1) + 'px) rotateX(' +
+        rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    });
+  }
+
+  // entering another section: a whoosh when the editing sounds are on (nothing drawn over the page)
   let lastCut = 0;
-  let cutTimer = 0;
-
-  // The frame for a clip: its own thumbnail, else the nearest earlier one (title clips have none).
-  function cutFrame(idx) {
-    for (let i = idx; i >= 0; i--) if (tlClips[i] && tlClips[i].thumb) return tlClips[i].thumb;
-    const any = tlClips.find((c) => c.thumb);
-    return any ? any.thumb : '';
-  }
-
-  function cutSlate(idx) {
-    const clip = tlClips[idx];
-    if (!clip) return '';
-    const reels = tlClips.filter((c) => /^genre-/.test(c.el.id));
-    const r = reels.indexOf(clip);
-    if (r !== -1) return 'V1 / Reel ' + pad2(r + 1) + '  \u00b7  ' + clip.link.title;
-    return (clip.el.id === 'hero' ? 'V1 / ' : 'Title / ') + clip.link.title;
-  }
-
-  function blockCut(dir, idx) {
+  function sectionWhoosh() {
     const now = performance.now();
-    if (now - lastCut < 450) return; // a fast scrub or a long jump crosses several sections: one cut
+    if (now - lastCut < 450) return; // a fast scrub or a long jump crosses several sections: one whoosh
     lastCut = now;
     playSfx('whoosh');
-    if (reduceMotion) return;
-    const wall = $('#cut-tiles');
-    const w = wall.clientWidth, hgt = wall.clientHeight;
-    if (!w || !hgt) return;
-
-    // cover-fit a 16:9 picture over the wall; YouTube's hq thumbs are 480x360 with that picture
-    // between 45px bars, so the image is drawn 360 tall and shifted up by one bar
-    const src = cutFrame(idx);
-    const hq = /\/hqdefault\.jpg$/.test(src);
-    const s = Math.max(w / 480, hgt / 270);
-    const bw = 480 * s, bh = (hq ? 360 : 270) * s;
-    const bx = (w - bw) / 2, by = (hgt - 270 * s) / 2 - (hq ? 45 * s : 0);
-
-    const cols = w < 600 ? 4 : 8;
-    const size = w / cols;
-    const rows = Math.ceil(hgt / size);
-    const slate = $('#cut-slate'); // kept across cuts: take it before the wall is emptied
-    wall.replaceChildren();
-    wall.style.setProperty('--from', dir >= 0 ? '-100deg' : '100deg');
-    wall.style.setProperty('--to', dir >= 0 ? '100deg' : '-100deg');
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const t = h('span', 'cut-tile');
-        const along = dir >= 0 ? r / rows : 1 - r / rows; // the wave runs with the scroll
-        t.style.cssText = 'left:' + c * size + 'px;top:' + r * size + 'px;width:' + (size + 1) + 'px;height:' + (size + 1) + 'px;' +
-          '--delay:' + (along * 0.26 + Math.random() * 0.1).toFixed(3) + 's;' +
-          (src ? 'background-image:url("' + src.replace(/["\\]/g, '') + '");background-size:' + bw + 'px ' + bh + 'px;' +
-            'background-position:' + (bx - c * size) + 'px ' + (by - r * size) + 'px;' : '');
-        wall.appendChild(t);
-      }
-    }
-    slate.textContent = cutSlate(idx);
-    wall.appendChild(slate);
-    wall.classList.remove('run');
-    void wall.offsetWidth; // restart the animations
-    wall.classList.add('run');
-    clearTimeout(cutTimer);
-    cutTimer = setTimeout(() => { wall.classList.remove('run'); wall.replaceChildren(slate); }, 1100);
   }
 
   /* ---------- full view: the text flies off to the sides and the showreel plays with sound ---------- */
