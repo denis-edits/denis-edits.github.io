@@ -23,8 +23,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=16">
-  <link rel="stylesheet" href="assets/css/admin.css?v=16">
+  <link rel="stylesheet" href="assets/css/style.css?v=17">
+  <link rel="stylesheet" href="assets/css/admin.css?v=17">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -34,15 +34,10 @@
   <header class="nav" id="nav">
     <div class="nav-inner">
       <a class="logo" id="nav-logo" href="#hero" aria-label="Back to top"><span class="logo-dot" aria-hidden="true"></span><span id="nav-logo-text">Portfolio</span></a>
-      <nav class="nav-links" id="nav-links" aria-label="Main"></nav>
-      <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
-        <span></span><span></span><span></span>
-      </button>
+      <!-- the sections are reached from the timeline at the bottom; only the contact shortcut stays up here -->
+      <a class="nav-cta" href="#contact">Contact</a>
     </div>
   </header>
-  <div class="mobile-menu" id="mobile-menu" aria-label="Menu">
-    <nav class="mobile-links" id="mobile-links" aria-label="Mobile"></nav>
-  </div>
 
   <main id="main">
     <!-- Hero -->
@@ -55,6 +50,7 @@
       <!-- viewer header, as on the Edit page of the NLE -->
       <div class="hero-top" aria-hidden="true">
         <span class="vw-name"><span id="vw-title">Showreel</span> <span class="hud-dim">&#9662;</span></span>
+        <span class="vw-hint hud-dim">Click the picture to watch with sound</span>
         <span class="vw-right"><span class="hud-dim">Fit &#9662;</span><span class="timecode" id="timecode">01:00:00:00</span></span>
       </div>
 
@@ -76,16 +72,14 @@
       </div>
       <a class="scroll-cue" href="#work-start" aria-label="Scroll to work"><span>Scroll to play</span></a>
 
-      <!-- viewer transport: scrubber + controls; the play key opens the showreel -->
-      <div class="transport">
-        <div class="tr-scrub" aria-hidden="true"><span class="tr-fill" id="tr-fill"></span></div>
-        <div class="tr-keys">
-          <span class="tr-key" aria-hidden="true">&#9198;</span>
-          <span class="tr-key" aria-hidden="true">&#9664;</span>
-          <span class="tr-key" aria-hidden="true">&#9632;</span>
-          <button class="tr-key tr-play" id="tr-play" type="button" aria-label="Play showreel">&#9654;</button>
-          <span class="tr-key" aria-hidden="true">&#9197;</span>
-          <span class="tr-key tr-loop" aria-hidden="true">&#10227;</span>
+      <!-- viewer transport: scrubber + reverse / stop / play / loop for the muted showreel behind the hero (J K L) -->
+      <div class="transport" id="transport" hidden>
+        <div class="tr-scrub" id="tr-scrub" aria-hidden="true"><span class="tr-fill" id="tr-fill"></span></div>
+        <div class="tr-keys" role="group" aria-label="Showreel transport">
+          <button class="tr-key" id="tr-rev" type="button" aria-label="Play reverse (J)" title="Play reverse (J)">&#9664;</button>
+          <button class="tr-key" id="tr-stop" type="button" aria-label="Stop (K)" title="Stop (K)">&#9632;</button>
+          <button class="tr-key" id="tr-play" type="button" aria-label="Play (L)" title="Play (L)">&#9654;</button>
+          <button class="tr-key tr-loop" id="tr-loop" type="button" aria-label="Loop" title="Loop" aria-pressed="true">&#10227;</button>
         </div>
       </div>
     </section>
@@ -204,7 +198,7 @@
 
   <noscript><p class="noscript">This portfolio needs JavaScript to load its content.</p></noscript>
 
-  <script src="assets/js/site.js?v=16" defer></script>
-  <script src="assets/js/admin.js?v=16" defer></script>
+  <script src="assets/js/site.js?v=17" defer></script>
+  <script src="assets/js/admin.js?v=17" defer></script>
 </body>
 </html>

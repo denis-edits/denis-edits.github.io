@@ -9,7 +9,6 @@
   let content = null;      // current content object (deep clone of the JSON)
   let firstRender = true;  // hero intro animation only plays once
   let revealObs = null;
-  let spyObs = null;
   let timecodeTimer = null;
   let lastFocus = null;
 
@@ -150,24 +149,13 @@
     $('#hero-meta').textContent = 'Edited in ' + software + '  /  ' + pad2(sections.length) + ' reels  /  ' + pad2(total) + ' clips';
     $('#vw-title').textContent = (str(site.name) ? str(site.name) + ' - ' : '') + 'Showreel ' + new Date().getFullYear();
 
-    // Showreel buttons (hero + transport) + optional looping background clip
+    // Showreel: the hero button opens it with sound; the transport drives the muted deck behind the hero
     const reel = parseVideo(site.showreel);
-    $('#play-showreel').hidden = $('#tr-play').hidden = !str(site.showreel).trim();
+    $('#play-showreel').hidden = !str(site.showreel).trim();
+    $('#transport').hidden = !(reel.type === 'youtube' || reel.type === 'file');
 
     renderHeroMedia(reel, str(site.showreel).trim());
-
-    // Viewer timecode from 01:00:00:00 at 24 fps; the scrubber loops every 60 s
-    const tc = $('#timecode');
-    const fill = $('#tr-fill');
-    if (reduceMotion) { tc.textContent = toTimecode(0, true); }
-    else if (!timecodeTimer) {
-      const t0 = performance.now();
-      timecodeTimer = setInterval(() => {
-        const f = Math.floor(((performance.now() - t0) / 1000) * 24);
-        tc.textContent = toTimecode(f, true);
-        fill.style.width = ((f % 1440) / 1440) * 100 + '%';
-      }, 1000 / 24);
-    }
+    startViewerClock();
   }
 
   const pad2 = (n) => String(n).padStart(2, '0');
@@ -178,20 +166,49 @@
     return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s / 60) % 60) + ':' + pad2(s % 60) + ':' + pad2(frames % 24);
   }
 
+  /* ---------- hero deck: the showreel behind the hero, driven by the transport (and J / K / L) ---------- */
+
+  // ctl = { play, pause, seek(s), time(), duration() } once a player is ready; dir: -1 reverse, 0 stopped, 1 play
+  const deck = { ctl: null, reel: null, dir: 0, loop: true, revTimer: 0, wantPlay: false, mounted: false };
+
+  let ytApi = null;
+  function loadYouTubeApi() {
+    if (!ytApi) {
+      ytApi = new Promise((resolve) => {
+        if (window.YT && window.YT.Player) { resolve(window.YT); return; }
+        const prev = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(window.YT); };
+        document.head.appendChild(h('script', null, null, { src: 'https://www.youtube.com/iframe_api', async: '' }));
+      });
+    }
+    return ytApi;
+  }
+
   // The showreel behind the hero. Rebuilt only when its link changes, so admin previews don't reload the player.
   function renderHeroMedia(reel, key) {
     const media = $('#hero-media');
     if (media.dataset.reel === key) return;
     media.dataset.reel = key;
     media.replaceChildren();
-    if (reel.type === 'file' && !reduceMotion) {
-      const v = h('video');
-      v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
-      v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
+    stopReverse();
+    Object.assign(deck, { ctl: null, reel, dir: 0, wantPlay: false, mounted: false });
+    // phones and reduced motion: a still until someone presses play
+    const auto = !reduceMotion && window.matchMedia('(min-width: 861px) and (pointer: fine)').matches;
+
+    if (reel.type === 'file') {
+      const v = h('video', null, null, { muted: '', playsinline: '', preload: auto ? 'auto' : 'metadata', 'aria-hidden': 'true' });
+      v.muted = true; v.playsInline = true;
       v.src = reel.embedUrl;
+      v.addEventListener('ended', onDeckEnded);
       media.appendChild(v);
-      const p = v.play();
-      if (p && p.catch) p.catch(() => {});
+      deck.ctl = {
+        play: () => { const p = v.play(); if (p && p.catch) p.catch(() => {}); },
+        pause: () => v.pause(),
+        seek: (s) => { v.currentTime = s; },
+        time: () => v.currentTime || 0,
+        duration: () => v.duration || 0,
+      };
+      if (auto) deckPlay();
     } else if (reel.type === 'youtube') {
       // still frame first (max-res, falls back to hq), so the footage is there before any player loads
       const img = h('img', null, null, { alt: '', decoding: 'async', fetchpriority: 'high' });
@@ -201,37 +218,111 @@
       img.addEventListener('error', fallback, { once: true });
       img.src = 'https://i.ytimg.com/vi/' + reel.id + '/maxresdefault.jpg';
       media.appendChild(img);
-      // desktop only: a muted looping embed, cut in once it has had time to start (hides YouTube's load UI)
-      if (!reduceMotion && window.matchMedia('(min-width: 861px) and (pointer: fine)').matches) {
-        const f = h('iframe', 'hero-yt', null, {
-          title: 'Showreel (background)', tabindex: '-1', 'aria-hidden': 'true', allow: 'autoplay; encrypted-media',
-        });
-        f.addEventListener('load', () => setTimeout(() => f.classList.add('on'), 2600), { once: true });
-        f.src = 'https://www.youtube-nocookie.com/embed/' + reel.id + '?autoplay=1&mute=1&controls=0&loop=1&playlist=' + reel.id +
-          '&playsinline=1&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3';
-        media.appendChild(f);
-      }
+      if (auto) deckPlay();
     }
   }
 
-  /* ---------- navigation + ticker ---------- */
-
-  function renderNav(items) {
-    const desktop = $('#nav-links');
-    const mobile = $('#mobile-links');
-    desktop.replaceChildren();
-    mobile.replaceChildren();
-    items.forEach((it, i) => {
-      const a = h('a', 'nav-link', it.label, { href: '#' + it.target });
-      a.dataset.target = it.target;
-      desktop.appendChild(a);
-      const m = h('a', 'mobile-link', null, { href: '#' + it.target });
-      m.dataset.target = it.target;
-      m.appendChild(h('span', 'mobile-num', String(i + 1).padStart(2, '0')));
-      m.appendChild(h('span', 'mobile-label', it.label));
-      mobile.appendChild(m);
+  function mountYouTube(reel) {
+    const media = $('#hero-media');
+    const holder = h('div');
+    media.appendChild(holder);
+    loadYouTubeApi().then((YT) => {
+      if (deck.reel !== reel) return; // showreel changed while the API loaded
+      const p = new YT.Player(holder, {
+        host: 'https://www.youtube-nocookie.com',
+        videoId: reel.id,
+        playerVars: { autoplay: 1, mute: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1, disablekb: 1, iv_load_policy: 3, fs: 0 },
+        events: {
+          onReady: (e) => {
+            e.target.mute();
+            deck.ctl = {
+              play: () => p.playVideo(),
+              pause: () => p.pauseVideo(),
+              seek: (s) => p.seekTo(s, true),
+              time: () => p.getCurrentTime() || 0,
+              duration: () => p.getDuration() || 0,
+              restart: () => p.loadVideoById({ videoId: reel.id, startSeconds: 0 }), // seek+play no longer works once ENDED
+            };
+            if (deck.wantPlay) deckPlay();
+          },
+          onStateChange: (e) => {
+            // cut the picture in once it really plays (hides YouTube's load UI)
+            if (e.data === YT.PlayerState.PLAYING) setTimeout(() => p.getIframe().classList.add('on'), 300);
+            if (e.data === YT.PlayerState.ENDED) onDeckEnded();
+          },
+        },
+      });
+      const f = p.getIframe();
+      f.className = 'hero-yt';
+      f.setAttribute('tabindex', '-1');
+      f.setAttribute('aria-hidden', 'true');
+      f.title = 'Showreel (background)';
     });
   }
+
+  function deckPlay() {
+    stopReverse();
+    deck.dir = 1;
+    if (deck.ctl) { deck.ctl.play(); return; }
+    deck.wantPlay = true;
+    if (deck.reel && deck.reel.type === 'youtube' && !deck.mounted) { deck.mounted = true; mountYouTube(deck.reel); }
+  }
+  function deckStop() {
+    stopReverse();
+    deck.dir = 0;
+    deck.wantPlay = false;
+    if (deck.ctl) deck.ctl.pause();
+  }
+  // reverse playback, stepped (the players have no native reverse)
+  function deckReverse() {
+    if (!deck.ctl) return;
+    stopReverse();
+    deck.ctl.pause();
+    deck.dir = -1;
+    deck.revTimer = setInterval(() => {
+      const t = deck.ctl.time() - 0.25;
+      if (t <= 0) { deck.ctl.seek(0); deckStop(); } else deck.ctl.seek(t);
+    }, 250);
+  }
+  function stopReverse() { clearInterval(deck.revTimer); deck.revTimer = 0; }
+
+  // Called just before the end (see the clock) or, as a fallback, on the players' own end event.
+  function onDeckEnded() {
+    if (deck.loop) {
+      if (deck.ctl.restart && deck.ctl.time() >= deck.ctl.duration() - 0.05) deck.ctl.restart();
+      else { deck.ctl.seek(0); deck.ctl.play(); }
+      deck.dir = 1;
+      return;
+    }
+    deckStop();
+    const first = $('.genre');
+    if (first) first.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+
+  function setLoop(on) {
+    deck.loop = on;
+    $('#tr-loop').setAttribute('aria-pressed', String(on));
+  }
+
+  // Viewer timecode (01:00:00:00 + the deck's time) and scrubber, at 24 fps
+  function startViewerClock() {
+    if (timecodeTimer) return;
+    const tc = $('#timecode');
+    const fill = $('#tr-fill');
+    timecodeTimer = setInterval(() => {
+      const t = deck.ctl ? deck.ctl.time() : 0;
+      const d = deck.ctl ? deck.ctl.duration() : 0;
+      // act on the end while still playing: the loop stays seamless and YouTube never shows its end screen
+      if (deck.dir === 1 && d && t >= d - 0.35) onDeckEnded();
+      tc.textContent = toTimecode(Math.floor(t * 24), true);
+      fill.style.width = (d ? Math.min(1, t / d) * 100 : 0) + '%';
+      $('#tr-rev').classList.toggle('on', deck.dir === -1);
+      $('#tr-stop').classList.toggle('on', deck.dir === 0);
+      $('#tr-play').classList.toggle('on', deck.dir === 1);
+    }, 1000 / 24);
+  }
+
+  /* ---------- ticker ---------- */
 
   function renderTicker(titles) {
     const track = $('#ticker-track');
@@ -553,11 +644,10 @@
     $('#nav-logo-text').textContent = str(site.name) || 'Portfolio';
   }
 
-  /* ---------- observers (scroll reveal + active nav link) ---------- */
+  /* ---------- scroll reveal ---------- */
 
   function setupObservers() {
     if (revealObs) revealObs.disconnect();
-    if (spyObs) spyObs.disconnect();
     const items = document.querySelectorAll('.reveal');
 
     if (reduceMotion || !('IntersectionObserver' in window)) {
@@ -570,20 +660,6 @@
       }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
       items.forEach((n) => revealObs.observe(n));
     }
-
-    if ('IntersectionObserver' in window) {
-      spyObs = new IntersectionObserver((entries) => {
-        entries.forEach((e) => { if (e.isIntersecting) setActiveLink(e.target.id); });
-      }, { rootMargin: '-45% 0px -50% 0px' });
-      document.querySelectorAll('.genre, #about, #contact').forEach((s) => spyObs.observe(s));
-    }
-  }
-
-  function setActiveLink(id) {
-    document.querySelectorAll('.nav-link, .mobile-link').forEach((a) => {
-      if (a.dataset.target === id) a.setAttribute('aria-current', 'true');
-      else a.removeAttribute('aria-current');
-    });
   }
 
   /* ---------- edit timeline (Resolve Edit page look): scroll = playhead, page sections = clips ---------- */
@@ -628,28 +704,34 @@
     layoutTimeline();
   }
 
-  // Clip widths, ruler marks and in/out timecodes follow each section's real place on the page.
+  // The timeline is the scroll range: the top of the page is its first frame, the bottom its last.
+  // A section's clip starts where scrolling brings that section to the middle of the screen,
+  // and runs until the next clip starts.
+  const maxScroll = () => Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+
   function layoutTimeline() {
-    const total = document.documentElement.scrollHeight;
-    if (!total || !tlClips.length) return;
+    if (!tlClips.length) return;
+    const max = maxScroll();
     const laneW = $('#tl-clips').clientWidth;
-    tlClips.forEach(({ el, link, audio }) => {
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      const left = (top / total) * 100 + '%';
-      const width = 'calc(' + (el.offsetHeight / total) * 100 + '% - 1px)';
-      link.style.left = audio.style.left = left;
-      link.style.width = audio.style.width = width;
-      link.classList.toggle('tight', (el.offsetHeight / total) * laneW < 56);
+    const starts = tlClips.map(({ el }, i) => i === 0 ? 0 :
+      Math.min(1, Math.max(0, (el.getBoundingClientRect().top + window.scrollY - window.innerHeight / 2) / max)));
+    tlClips.forEach((clip, i) => {
+      clip.start = starts[i];
+      clip.end = i + 1 < starts.length ? starts[i + 1] : 1;
+      const { link, audio, el } = clip;
+      link.style.left = audio.style.left = clip.start * 100 + '%';
+      link.style.width = audio.style.width = 'calc(' + (clip.end - clip.start) * 100 + '% - 1px)';
+      link.classList.toggle('tight', (clip.end - clip.start) * laneW < 56);
       const tc = el.querySelector('.genre-tc');
       if (tc) {
-        tc.textContent = 'IN ' + toTimecode(Math.round(top / PX_PER_FRAME), true) + '  OUT ' +
-          toTimecode(Math.round((top + el.offsetHeight) / PX_PER_FRAME), true);
+        tc.textContent = 'IN ' + toTimecode(Math.round((clip.start * max) / PX_PER_FRAME), true) + '  OUT ' +
+          toTimecode(Math.round((clip.end * max) / PX_PER_FRAME), true);
       }
     });
     const ruler = $('#tl-ruler');
     ruler.replaceChildren();
     for (let k = 0; k < 10; k++) {
-      const mark = h('span', 'tl-mark', toTimecode(Math.round((total * k) / 10 / PX_PER_FRAME), true));
+      const mark = h('span', 'tl-mark', toTimecode(Math.round((max * k) / 10 / PX_PER_FRAME), true));
       mark.style.left = k * 10 + '%';
       ruler.appendChild(mark);
     }
@@ -657,15 +739,14 @@
   }
 
   function updatePlayhead() {
-    const total = document.documentElement.scrollHeight;
-    const y = window.scrollY + window.innerHeight / 2; // the frame under the playhead = middle of the screen
+    const p = Math.min(1, Math.max(0, window.scrollY / maxScroll()));
     const lane = $('#tl-clips');
-    $('#tl-head').style.transform = 'translateX(' + (lane.offsetLeft + (y / total) * lane.clientWidth) + 'px)';
-    const frame = Math.round(y / PX_PER_FRAME);
+    $('#tl-head').style.transform = 'translateX(' + (lane.offsetLeft + p * lane.clientWidth) + 'px)';
+    const frame = Math.round(window.scrollY / PX_PER_FRAME);
     if (frame !== tlFrame) { tlFrame = frame; $('#tl-tc').textContent = toTimecode(frame, true); }
-    tlClips.forEach(({ el, link }) => {
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      if (y >= top && y < top + el.offsetHeight) {
+    tlClips.forEach(({ link, start, end }, i) => {
+      const last = i === tlClips.length - 1;
+      if (p >= start && (p < end || (last && p <= end))) {
         link.setAttribute('aria-current', 'true');
         $('#tl-now').textContent = link.title; // phones: clips are too narrow for their names
       } else link.removeAttribute('aria-current');
@@ -682,7 +763,7 @@
   function scrubTo(clientX) {
     const r = $('#tl-clips').getBoundingClientRect();
     const f = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-    window.scrollTo({ top: f * document.documentElement.scrollHeight - window.innerHeight / 2, behavior: 'instant' });
+    window.scrollTo({ top: f * maxScroll(), behavior: 'instant' });
   }
   [$('#tl-ruler'), $('#tl-head')].forEach((handle) => {
     handle.addEventListener('pointerdown', (e) => {
@@ -762,7 +843,6 @@
     renderSections(sections, navItems);
     renderTestimonials(content, navItems);
     navItems.push({ label: 'About', target: 'about' }, { label: 'Contact', target: 'contact' });
-    renderNav(navItems);
     renderTicker(sections.map((s) => str(s.title)).filter(Boolean));
     renderAbout(site, sections);
     renderContact(site);
@@ -818,6 +898,9 @@
 
     $('#player-title').textContent = title;
     $('#player-meta').textContent = [str(video.year), str(video.client), str(video.description)].filter(Boolean).join('  ·  ');
+    // the muted deck behind the hero waits while something plays with sound
+    deck.resume = deck.dir === 1;
+    if (deck.dir !== 0) deckStop();
     player.hidden = false;
     document.body.classList.add('player-open');
     requestAnimationFrame(() => player.classList.add('open'));
@@ -832,18 +915,12 @@
     player.classList.remove('open');
     player.hidden = true;
     document.body.classList.remove('player-open');
+    if (deck.resume) { deck.resume = false; deckPlay(); }
     if (lastFocus && lastFocus.focus) lastFocus.focus();
     lastFocus = null;
   }
 
   /* ---------- static event wiring (once) ---------- */
-
-  function setMenu(open) {
-    document.body.classList.toggle('menu-open', open);
-    const t = $('#nav-toggle');
-    t.setAttribute('aria-expanded', String(open));
-    t.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
-  }
 
   function wire() {
     $('#player-close').addEventListener('click', closePlayer);
@@ -853,17 +930,45 @@
       openPlayer({ title: 'Showreel', url: site.showreel, client: str(site.name), vertical: false });
     };
     $('#play-showreel').addEventListener('click', playReel);
-    $('#tr-play').addEventListener('click', playReel);
-    $('#nav-toggle').addEventListener('click', () => setMenu(!document.body.classList.contains('menu-open')));
-    // any tap in the open menu closes it: on a link (after jumping) or on the empty space around them
-    $('#mobile-menu').addEventListener('click', () => setMenu(false));
+    // clicking the picture (or the text over it, which covers most of it on phones) opens the showreel with sound
+    $('#hero').addEventListener('click', (e) => {
+      if (e.target.closest('a, button, .transport, .hero-top') || String(window.getSelection())) return;
+      if (str(content && content.site && content.site.showreel).trim()) playReel();
+    });
+
+    // transport: reverse, stop, play, loop (on by default)
+    $('#tr-rev').addEventListener('click', deckReverse);
+    $('#tr-stop').addEventListener('click', deckStop);
+    $('#tr-play').addEventListener('click', deckPlay);
+    $('#tr-loop').addEventListener('click', () => setLoop(!deck.loop));
+    setLoop(true);
+    // the scrubber seeks the deck
+    const scrub = $('#tr-scrub');
+    const seekAt = (x) => {
+      if (!deck.ctl || !deck.ctl.duration()) return;
+      const r = scrub.getBoundingClientRect();
+      deck.ctl.seek(Math.min(1, Math.max(0, (x - r.left) / r.width)) * deck.ctl.duration());
+    };
+    scrub.addEventListener('pointerdown', (e) => {
+      seekAt(e.clientX);
+      try { scrub.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
+    });
+    scrub.addEventListener('pointermove', (e) => { if (scrub.hasPointerCapture(e.pointerId)) seekAt(e.clientX); });
+
     $('#retry-load').addEventListener('click', () => { loadContent(); });
     $('#contact-form').addEventListener('submit', submitContactForm);
 
     document.addEventListener('keydown', (e) => {
+      // J / K / L drive the deck, as in the NLE (not while typing or watching)
+      const typing = e.target.closest && e.target.closest('input, textarea, select, [contenteditable]');
+      if (!typing && player.hidden && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'j') { deckReverse(); return; }
+        if (k === 'k') { deckStop(); return; }
+        if (k === 'l') { deckPlay(); return; }
+      }
       if (e.key === 'Escape') {
         if (!player.hidden) closePlayer();
-        else if (document.body.classList.contains('menu-open')) setMenu(false);
       } else if (e.key === 'Tab' && !player.hidden) {
         // keep focus inside the dialog
         const f = Array.from(player.querySelectorAll('button, iframe, video[controls]'));
@@ -878,8 +983,6 @@
     const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 24);
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
-
-    window.addEventListener('resize', () => { if (window.innerWidth > 1100) setMenu(false); });
   }
 
   /* ---------- loading ---------- */
