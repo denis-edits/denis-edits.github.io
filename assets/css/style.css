@@ -260,7 +260,6 @@ main { overflow-x: clip; }
   background-size: 100% 14px, 100% 7px; background-repeat: no-repeat;
 }
 .ticker-track { display: flex; width: max-content; animation: marquee 60s linear infinite; }
-.ticker:hover .ticker-track { animation-play-state: paused; }
 .ticker-item { display: inline-flex; align-items: center; gap: 22px; padding-right: 22px; white-space: nowrap; }
 .ticker-text { font-family: var(--font-display); font-weight: 800; font-variation-settings: 'wdth' 62; text-transform: uppercase; font-size: clamp(1.6rem, 4vw, 2.8rem); line-height: 1; color: var(--muted); }
 .ticker-item:nth-child(even) .ticker-text { color: var(--text); }
@@ -286,17 +285,19 @@ main { overflow-x: clip; }
 .genre-slate { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 .genre-index { color: var(--accent); }
 .genre-tc { font-variant-numeric: tabular-nums; }
-/* the invisible frame the sliding title moves in: it extends 4vw past the text on each side and fades to
-   nothing at its edges, so the title dissolves at the border instead of running off the page */
-.genre-title-wrap {
-  min-width: 0; margin-inline: -4vw; padding-inline: 4vw; overflow-x: clip;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 4vw, #000 calc(100% - 4vw), transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 4vw, #000 calc(100% - 4vw), transparent 100%);
-}
+/* the invisible frame the sliding title moves in: it extends 4vw past the text on the right, and the
+   title's own mask fades it to nothing over that strip (--fs/--fe, set by site.js from the slide and the
+   shrink), so it dissolves at the border instead of running off the page */
+.genre-title-wrap { min-width: 0; margin-right: -4vw; padding-right: 4vw; overflow-x: clip; }
 .genre-title {
   font-family: var(--font-display); font-weight: 800; font-variation-settings: 'wdth' 62; text-transform: uppercase;
   font-size: clamp(3rem, 10vw, 9.5rem); line-height: 0.84; letter-spacing: -0.01em;
+  transform-origin: 0 0; text-shadow: 0 2px 22px rgba(0, 0, 0, 0.55);
+  -webkit-mask-image: linear-gradient(90deg, #000 var(--fs, 100%), transparent var(--fe, 100%));
+  mask-image: linear-gradient(90deg, #000 var(--fs, 100%), transparent var(--fe, 100%));
 }
+/* the title stays pinned at the top while its reel scrolls under it, so it paints above the cards */
+.genre-head { z-index: 3; }
 .genre-aside { display: flex; flex-direction: column; gap: 10px; padding-bottom: 0.5em; }
 .genre-desc { color: rgba(237, 237, 239, 0.8); }
 .genre-count { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }

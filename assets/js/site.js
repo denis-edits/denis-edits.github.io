@@ -1098,8 +1098,9 @@
      Each card is measured on its untransformed list item and its inner .card is moved: below the middle of
      the screen it sits back in depth, tilted, and lower; it flattens as it reaches the middle, where it is
      read, and tilts away again above. Columns travel at different speeds (parallax) and fan out to the
-     sides. Genre titles slide in from the right out of a fade, stop in their frame, and leave to the
-     right in the same fade as they rise to the top. */
+     sides. Genre titles slide in from the right out of a fade and stop in their frame; as they reach the
+     top they shrink and stay pinned there while their reel scrolls under them, then leave to the right in
+     the same fade when the next reel comes up. */
 
   let motionItems = [];
 
@@ -1108,7 +1109,7 @@
     if (reduceMotion) return;
     document.querySelectorAll('.genre').forEach((sec) => {
       const title = sec.querySelector('.genre-title');
-      if (title) motionItems.push({ box: title.parentElement, el: title, kind: 'title' });
+      if (title) motionItems.push({ box: title.parentElement, el: title, kind: 'title', sec });
       sec.querySelectorAll('.card-wrap').forEach((li) => motionItems.push({ box: li, el: li.firstElementChild, kind: 'card' }));
     });
     updateScrollMotion();
@@ -1120,22 +1121,32 @@
     const vh = window.innerHeight, mid = vh / 2;
     const phone = window.innerWidth < 600;
     const top = $('#viewer-bar').offsetHeight;
-    motionItems.forEach(({ box, el, kind }) => {
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+    const ease = (v) => v * v * (3 - 2 * v);
+    motionItems.forEach(({ box, el, kind, sec }) => {
       const r = box.getBoundingClientRect();
-      if (r.bottom < -vh * 0.5 || r.top > vh * 1.5) return;
-      const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - mid) / mid)); // -1 above, 0 middle, 1 below
       if (kind === 'title') {
-        // in from the right out of a fade, at rest from 62% of the screen up (never past its resting place);
-        // out to the right in the same fade, spread over the whole way from 35% of the screen until its last
-        // line leaves at the top, so even a two-line title is never gone before it is off screen
-        const enter = Math.max(0, Math.min(1, (vh * 0.92 - r.top) / (vh * 0.3)));
-        let exit = Math.max(0, Math.min(1, (vh * 0.35 - r.top) / (vh * 0.35 - top + r.height)));
-        exit = exit * exit * (3 - 2 * exit); // ease in and out
-        const x = (1 - enter) * (phone ? 40 : 30) + exit * (phone ? 40 : 30);
-        el.style.transform = 'translate3d(' + x.toFixed(2) + 'vw,0,0)';
+        const s = sec.getBoundingClientRect();
+        if (s.bottom < 0 || s.top > vh * 1.5) return;
+        // in from the right out of a fade, at rest from 62% of the screen up
+        const enter = clamp01((vh * 0.92 - r.top) / (vh * 0.3));
+        // shrinks as it nears the top, then stays pinned under the viewer bar, never below its own reel
+        const pinY = top + (phone ? 8 : 12);
+        const scale = 1 - (1 - (phone ? 0.42 : 0.3)) * ease(clamp01((pinY + vh * 0.25 - r.top) / (vh * 0.45)));
+        const y = Math.max(0, Math.min(pinY - r.top, s.bottom - r.top - el.offsetHeight * scale));
+        // out to the right in the same fade once the reel's end comes up past the middle (the next title is coming in)
+        const exit = ease(clamp01((vh * 0.55 - s.bottom) / (vh * 0.35)));
+        const x = ((1 - enter) + exit) * (phone ? 40 : 30) * window.innerWidth / 100;
+        el.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0) scale(' + scale.toFixed(3) + ')';
         el.style.opacity = (enter * (1 - exit)).toFixed(2);
+        // the fade strip stays fixed on the page while the title slides and shrinks under it
+        const w = el.offsetWidth, strip = box.clientWidth - w;
+        el.style.setProperty('--fs', ((w - x) / scale).toFixed(1) + 'px');
+        el.style.setProperty('--fe', ((w + strip - x) / scale).toFixed(1) + 'px');
         return;
       }
+      if (r.bottom < -vh * 0.5 || r.top > vh * 1.5) return;
+      const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - mid) / mid)); // -1 above, 0 middle, 1 below
       const g = box.parentElement.getBoundingClientRect();
       const c = g.width ? (r.left - g.left + r.width / 2) / g.width : 0.5; // 0 left column .. 1 right
       const side = c * 2 - 1;
