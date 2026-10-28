@@ -756,7 +756,7 @@
       const audio = h('span', 'tl-aclip' + kind);
       audio.innerHTML = waveSvg(i + 1); // generated, trusted markup
       audioLane.appendChild(audio);
-      return { el, link, audio };
+      return { el, link, audio, thumb: it.thumb || '' };
     }).filter(Boolean);
     layoutTimeline();
   }
@@ -812,7 +812,7 @@
       } else link.removeAttribute('aria-current');
     });
     // entering another section by scrolling is a cut: blocks + whoosh
-    if (fromScroll && current !== -1 && tlCurrent !== -1 && current !== tlCurrent) blockCut(window.scrollY >= tlLastY ? 1 : -1);
+    if (fromScroll && current !== -1 && tlCurrent !== -1 && current !== tlCurrent) blockCut(window.scrollY >= tlLastY ? 1 : -1, current);
     if (current !== -1) tlCurrent = current;
     tlLastY = window.scrollY;
   }
@@ -1049,55 +1049,71 @@
     if (on) playSfx('cut'); // the click that turns it on is the gesture that unlocks audio
   }
 
-  /* ---------- block cut: a wave of blocks across the screen when the playhead enters another section ---------- */
+  /* ---------- clip cut: entering another section flips a wall of 3D tiles that carry a frame of that
+     section's footage, with a slate naming it, then flips them away to reveal the page (CSS 3D, no WebGL) ---------- */
 
-  let cutRaf = 0;
   let lastCut = 0;
+  let cutTimer = 0;
 
-  function blockCut(dir) {
+  // The frame for a clip: its own thumbnail, else the nearest earlier one (title clips have none).
+  function cutFrame(idx) {
+    for (let i = idx; i >= 0; i--) if (tlClips[i] && tlClips[i].thumb) return tlClips[i].thumb;
+    const any = tlClips.find((c) => c.thumb);
+    return any ? any.thumb : '';
+  }
+
+  function cutSlate(idx) {
+    const clip = tlClips[idx];
+    if (!clip) return '';
+    const reels = tlClips.filter((c) => /^genre-/.test(c.el.id));
+    const r = reels.indexOf(clip);
+    if (r !== -1) return 'V1 / Reel ' + pad2(r + 1) + '  \u00b7  ' + clip.link.title;
+    return (clip.el.id === 'hero' ? 'V1 / ' : 'Title / ') + clip.link.title;
+  }
+
+  function blockCut(dir, idx) {
     const now = performance.now();
     if (now - lastCut < 450) return; // a fast scrub or a long jump crosses several sections: one cut
     lastCut = now;
     playSfx('whoosh');
     if (reduceMotion) return;
-    const cv = $('#cut-blocks');
-    const w = cv.clientWidth, hgt = cv.clientHeight;
+    const wall = $('#cut-tiles');
+    const w = wall.clientWidth, hgt = wall.clientHeight;
     if (!w || !hgt) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.width = Math.round(w * dpr);
-    cv.height = Math.round(hgt * dpr);
-    const ctx = cv.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const css = getComputedStyle(document.documentElement);
-    const colors = { bg: css.getPropertyValue('--bg').trim(), surface: css.getPropertyValue('--surface-2').trim(), accent: css.getPropertyValue('--accent').trim() };
-    const size = w < 600 ? 56 : 88;
-    const cols = Math.ceil(w / size), rows = Math.ceil(hgt / size);
-    // each block shows for a few frames; the wave runs in the scroll direction, with some scatter
-    const blocks = [];
+
+    // cover-fit a 16:9 picture over the wall; YouTube's hq thumbs are 480x360 with that picture
+    // between 45px bars, so the image is drawn 360 tall and shifted up by one bar
+    const src = cutFrame(idx);
+    const hq = /\/hqdefault\.jpg$/.test(src);
+    const s = Math.max(w / 480, hgt / 270);
+    const bw = 480 * s, bh = (hq ? 360 : 270) * s;
+    const bx = (w - bw) / 2, by = (hgt - 270 * s) / 2 - (hq ? 45 * s : 0);
+
+    const cols = w < 600 ? 4 : 8;
+    const size = w / cols;
+    const rows = Math.ceil(hgt / size);
+    const slate = $('#cut-slate'); // kept across cuts: take it before the wall is emptied
+    wall.replaceChildren();
+    wall.style.setProperty('--from', dir >= 0 ? '-100deg' : '100deg');
+    wall.style.setProperty('--to', dir >= 0 ? '100deg' : '-100deg');
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const along = dir >= 0 ? r / rows : 1 - r / rows;
-        const rnd = Math.random();
-        blocks.push({
-          x: c * size, y: r * size,
-          start: along * 0.22 + Math.random() * 0.12,
-          hold: 0.06 + Math.random() * 0.09,
-          fill: rnd < 0.05 ? colors.accent : rnd < 0.3 ? colors.surface : colors.bg,
-        });
+        const t = h('span', 'cut-tile');
+        const along = dir >= 0 ? r / rows : 1 - r / rows; // the wave runs with the scroll
+        t.style.cssText = 'left:' + c * size + 'px;top:' + r * size + 'px;width:' + (size + 1) + 'px;height:' + (size + 1) + 'px;' +
+          '--delay:' + (along * 0.26 + Math.random() * 0.1).toFixed(3) + 's;' +
+          (src ? 'background-image:url("' + src.replace(/["\\]/g, '') + '");background-size:' + bw + 'px ' + bh + 'px;' +
+            'background-position:' + (bx - c * size) + 'px ' + (by - r * size) + 'px;' : '');
+        wall.appendChild(t);
       }
     }
-    const end = 0.22 + 0.12 + 0.15;
-    cancelAnimationFrame(cutRaf);
-    const draw = (ts) => {
-      const t = (ts - now) / 1000;
-      ctx.clearRect(0, 0, w, hgt);
-      if (t >= end) return;
-      blocks.forEach((b) => {
-        if (t >= b.start && t < b.start + b.hold) { ctx.fillStyle = b.fill; ctx.fillRect(b.x, b.y, size + 1, size + 1); }
-      });
-      cutRaf = requestAnimationFrame(draw);
-    };
-    cutRaf = requestAnimationFrame(draw);
+    slate.textContent = cutSlate(idx);
+    wall.appendChild(slate);
+    wall.classList.remove('run');
+    void wall.offsetWidth; // restart the animations
+    wall.classList.add('run');
+    clearTimeout(cutTimer);
+    cutTimer = setTimeout(() => { wall.classList.remove('run'); wall.replaceChildren(slate); }, 1100);
   }
 
   /* ---------- full view: the text flies off to the sides and the showreel plays with sound ---------- */
