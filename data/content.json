@@ -25,7 +25,8 @@
         "url": "https://linkedin.com/"
       }
     ],
-    "accent": "#ff6a3d"
+    "accent": "#ff6a3d",
+    "showreelArchive": []
   },
   "sections": [
     {
@@ -34,34 +35,14 @@
       "description": "Vertical, fast and built to stop the scroll.",
       "videos": [
         {
-          "id": "v-1730000000007",
-          "title": "Reel - Behind the Scenes",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://www.youtube.com/shorts/jNQXAC9IVRw",
+          "id": "v-1793160795565-cpec",
+          "title": "Videoclip nou",
+          "description": "",
+          "url": "media/1793160844685-794d7985-e805-4bfe-8091-6407f2b0e6e8.mov",
           "thumbnail": "",
           "year": "2026",
-          "client": "Sample",
-          "vertical": true
-        },
-        {
-          "id": "v-1730000000008",
-          "title": "Reel - Product Teaser",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://www.youtube.com/shorts/9bZkp7q19f0",
-          "thumbnail": "",
-          "year": "2026",
-          "client": "Sample",
-          "vertical": true
-        },
-        {
-          "id": "v-1730000000009",
-          "title": "Reel - Event Recap",
-          "description": "Placeholder - replace with your own work.",
-          "url": "https://www.youtube.com/shorts/dQw4w9WgXcQ",
-          "thumbnail": "",
-          "year": "2025",
-          "client": "Sample",
-          "vertical": true
+          "client": "",
+          "vertical": false
         }
       ]
     },
