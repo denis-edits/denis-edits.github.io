@@ -504,6 +504,11 @@
       aside.appendChild(h('span', 'genre-count', pad2(videos.length) + (videos.length === 1 ? ' clip' : ' clips')));
       head.appendChild(aside);
       el.appendChild(head);
+      // the small copy of the title pinned under the viewer bar while this genre's clips are on screen
+      const pin = h('div', 'genre-pin', null, { 'aria-hidden': 'true' });
+      pin.appendChild(h('span', 'genre-pin-slate', 'V1 / Reel ' + pad2(idx + 1)));
+      pin.appendChild(h('span', 'genre-pin-title', title));
+      el.appendChild(pin);
 
       const allVertical = videos.length > 0 && videos.every((v) => v.vertical === true);
       const grid = h('ul', 'grid' + (allVertical ? ' grid-vertical' : ''));
@@ -1098,7 +1103,8 @@
      Each card is measured on its untransformed list item and its inner .card is moved: below the middle of
      the screen it sits back in depth, tilted, and lower; it flattens as it reaches the middle, where it is
      read, and tilts away again above. Columns travel at different speeds (parallax) and fan out to the
-     sides. Genre titles slide sideways through the frame like a strip through a viewer. */
+     sides. Genre titles slide in from the right out of a fade and stop in their frame (updateGenrePins
+     takes them from there). */
 
   let motionItems = [];
 
@@ -1115,17 +1121,22 @@
 
   function updateScrollMotion() {
     updateAboutMotion();
+    updateGenrePins();
     if (!motionItems.length) return;
     const vh = window.innerHeight, mid = vh / 2;
     const phone = window.innerWidth < 600;
+    const top = $('#viewer-bar').offsetHeight;
     motionItems.forEach(({ box, el, kind }) => {
       const r = box.getBoundingClientRect();
       if (r.bottom < -vh * 0.5 || r.top > vh * 1.5) return;
       const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - mid) / mid)); // -1 above, 0 middle, 1 below
       if (kind === 'title') {
-        // slides within its frame (.genre-title-wrap fades the edges) and dims away from the middle
-        el.style.transform = 'translate3d(' + (p * (phone ? 6 : 9)).toFixed(2) + 'vw,0,0)';
-        el.style.opacity = Math.max(0.2, 1 - Math.max(0, Math.abs(p) - 0.25) * 1.1).toFixed(2);
+        // in from the right out of a fade, at rest from 62% of the screen up (never past its resting place);
+        // near the top it shrinks and fades, handing over to its small pinned copy
+        const enter = Math.max(0, Math.min(1, (vh * 0.92 - r.top) / (vh * 0.3)));
+        const hand = Math.max(0, Math.min(1, (top + 120 - r.top) / 120));
+        el.style.transform = 'translate3d(' + ((1 - enter) * (phone ? 40 : 30)).toFixed(2) + 'vw,0,0) scale(' + (1 - hand * 0.3).toFixed(3) + ')';
+        el.style.opacity = (enter * (1 - hand)).toFixed(2);
         return;
       }
       const g = box.parentElement.getBoundingClientRect();
@@ -1138,6 +1149,26 @@
       const y = p * depth * (phone ? 60 : 130);
       el.style.transform = 'perspective(1200px) translate3d(0,' + y.toFixed(1) + 'px,' + z.toFixed(1) + 'px) rotateX(' +
         rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    });
+  }
+
+  // Each genre's small pinned title, under the viewer bar while its clips are on screen: it comes in from the
+  // right out of a fade once the big title has scrolled up past the top, and leaves the same way as the
+  // section's end rises towards the next genre's title.
+  function updateGenrePins() {
+    const vh = window.innerHeight;
+    const phone = window.innerWidth < 600;
+    const top = $('#viewer-bar').offsetHeight;
+    document.querySelectorAll('.genre').forEach((sec) => {
+      const pin = sec.querySelector('.genre-pin');
+      const title = sec.querySelector('.genre-title-wrap');
+      if (!pin || !title) return;
+      const pinIn = Math.max(0, Math.min(1, (top + 40 - title.getBoundingClientRect().bottom) / 90));
+      const pinOut = Math.max(0, Math.min(1, (vh * 0.85 - sec.getBoundingClientRect().bottom) / (vh * 0.25)));
+      const v = pinIn * (1 - pinOut);
+      pin.style.opacity = v.toFixed(2);
+      pin.style.visibility = v > 0.01 ? 'visible' : 'hidden';
+      pin.style.transform = reduceMotion ? 'none' : 'translate3d(' + ((1 - v) * (phone ? 30 : 22)).toFixed(2) + 'vw,0,0)';
     });
   }
 
