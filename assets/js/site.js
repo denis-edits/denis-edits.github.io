@@ -1098,20 +1098,23 @@
      Each card is measured on its untransformed list item and its inner .card is moved: below the middle of
      the screen it sits back in depth, tilted, and lower; it flattens as it reaches the middle, where it is
      read, and tilts away again above. Columns travel at different speeds (parallax) and fan out to the
-     sides. Genre titles slide in from the right out of a fade and stop in their frame; as they reach the
-     top they shrink and stay pinned there while their reel scrolls under them, then leave to the right in
-     the same fade when the next reel comes up. */
+     sides. Genre titles slide in from the right out of a fade and stop in their frame; at the top the viewer
+     bar squeezes them smaller as the page rises, and when they cannot shrink any more they leave to the
+     right in the same fade, before their clips reach them. */
 
   let motionItems = [];
 
   function setupScrollMotion() {
     motionItems = [];
     if (reduceMotion) return;
+    const titles = [];
     document.querySelectorAll('.genre').forEach((sec) => {
       const title = sec.querySelector('.genre-title');
-      if (title) motionItems.push({ box: title.parentElement, el: title, kind: 'title', sec });
-      sec.querySelectorAll('.card-wrap').forEach((li) => motionItems.push({ box: li, el: li.firstElementChild, kind: 'card' }));
+      const cards = [...sec.querySelectorAll('.card-wrap')].map((li) => li.firstElementChild);
+      if (title) titles.push({ box: title.parentElement, el: title, kind: 'title', sec, cards });
+      cards.forEach((card) => motionItems.push({ box: card.parentElement, el: card, kind: 'card' }));
     });
+    motionItems.push(...titles); // after the cards: a title reads where its cards were just drawn
     updateScrollMotion();
   }
 
@@ -1123,19 +1126,32 @@
     const top = $('#viewer-bar').offsetHeight;
     const clamp01 = (v) => Math.max(0, Math.min(1, v));
     const ease = (v) => v * v * (3 - 2 * v);
-    motionItems.forEach(({ box, el, kind, sec }) => {
+    motionItems.forEach(({ box, el, kind, sec, cards }) => {
       const r = box.getBoundingClientRect();
       if (kind === 'title') {
         const s = sec.getBoundingClientRect();
         if (s.bottom < 0 || s.top > vh * 1.5) return;
         // in from the right out of a fade, at rest from 62% of the screen up
         const enter = clamp01((vh * 0.92 - r.top) / (vh * 0.3));
-        // shrinks as it nears the top, then stays pinned under the viewer bar, never below its own reel
-        const pinY = top + (phone ? 8 : 12);
-        const scale = 1 - (1 - (phone ? 0.42 : 0.3)) * ease(clamp01((pinY + vh * 0.25 - r.top) / (vh * 0.45)));
-        const y = Math.max(0, Math.min(pinY - r.top, s.bottom - r.top - el.offsetHeight * scale));
-        // out to the right in the same fade once the reel's end comes up past the middle (the next title is coming in)
-        const exit = ease(clamp01((vh * 0.55 - s.bottom) / (vh * 0.35)));
+        // the viewer bar squeezes it: its top stops at the bar while its bottom keeps rising with the page,
+        // down to about one small line per line of text
+        const pinY = top + (phone ? 6 : 10);
+        const h = el.offsetHeight;
+        const lines = Math.max(1, Math.round(h / (parseFloat(getComputedStyle(el).fontSize) * 0.84)));
+        const minH = Math.min(h, lines * (phone ? 26 : 38));
+        const H = Math.min(h, Math.max(minH, r.bottom - pinY));
+        // the clips rise in 3D as they near the top: the title never sits on them, they push it up instead
+        let floor = s.bottom;
+        cards.forEach((c) => { floor = Math.min(floor, c.getBoundingClientRect().top); });
+        floor -= phone ? 10 : 16;
+        const T = Math.min(Math.max(r.top, pinY), floor - H);
+        const scale = H / h, y = T - r.top;
+        // when it cannot get any smaller it leaves to the right in the same fade, gone by the time the
+        // clips reach it (or as they push it up under the bar)
+        const d = pinY + (minH + h) / 2 - r.bottom; // from halfway squeezed, so even a one-line title leaves slowly
+        const room = Math.max(0, floor - pinY - H);
+        let exit = Math.max(d > 0 ? d / (d + room) : 0, (pinY - T) / H);
+        exit = ease(clamp01(exit));
         const x = ((1 - enter) + exit) * (phone ? 40 : 30) * window.innerWidth / 100;
         el.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0) scale(' + scale.toFixed(3) + ')';
         el.style.opacity = (enter * (1 - exit)).toFixed(2);
@@ -1154,7 +1170,8 @@
       const rx = p * (phone ? 20 : 32);
       const ry = -side * p * (phone ? 12 : 20);
       const z = -Math.abs(p) * (phone ? 160 : 320);
-      const y = p * depth * (phone ? 60 : 130);
+      // they rise less above the middle, so they do not catch up with their title at the top
+      const y = p * depth * (phone ? 60 : 130) * (p < 0 ? 0.4 : 1);
       el.style.transform = 'perspective(1200px) translate3d(0,' + y.toFixed(1) + 'px,' + z.toFixed(1) + 'px) rotateX(' +
         rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
     });
