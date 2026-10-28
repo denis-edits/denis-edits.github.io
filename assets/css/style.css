@@ -17,14 +17,16 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --gutter: clamp(16px, 4vw, 56px);
   --max: 1440px;
-  --nav-h: 56px;
+  --nav-h: 32px; /* the viewer bar, the only top bar */
   --tl-h: 96px;
   --frame: 42ms; /* one frame at 24 fps */
   color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { overflow-x: clip; scroll-behavior: smooth; scroll-padding-top: calc(var(--nav-h) + 8px); -webkit-text-size-adjust: 100%; }
+html { overflow-x: clip; scroll-behavior: smooth; scroll-padding-top: calc(var(--nav-h) + 8px); -webkit-text-size-adjust: 100%; scrollbar-width: none; }
+/* no visible page scrollbar: the timeline at the bottom is the scroll bar */
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
 body {
   margin: 0; padding-bottom: var(--tl-h);
   background: var(--bg); color: var(--text);
@@ -68,21 +70,7 @@ ul { margin: 0; padding: 0; list-style: none; }
   50% { transform: translate(3%, -5%); } 75% { transform: translate(-6%, -2%); } 100% { transform: translate(0, 0); }
 }
 
-/* ---------- navigation: a thin HUD bar ---------- */
-.nav { position: fixed; inset: 0 0 auto 0; z-index: 100; height: var(--nav-h); border-bottom: 1px solid transparent; transition: background 0.2s steps(2), border-color 0.2s steps(2); }
-.nav.scrolled { background: var(--bg); border-bottom-color: var(--line); }
-.nav-inner { max-width: var(--max); height: 100%; margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.logo {
-  display: inline-flex; align-items: center; gap: 10px; text-decoration: none; position: relative; z-index: 130; white-space: nowrap; flex-shrink: 0;
-  font-family: var(--font-display); font-weight: 800; font-variation-settings: 'wdth' 62; font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.01em;
-}
-.logo-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: blink 1.2s steps(2, jump-none) infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-.nav-cta {
-  padding: 7px 12px; border: 1px solid var(--line-strong); text-decoration: none;
-  font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;
-}
-.nav-cta:hover { background: var(--text); color: var(--bg); }
 
 /* ---------- hero: the showreel is the first frame ---------- */
 .hero {
@@ -99,7 +87,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 /* YouTube background: oversized to cover and to push its UI out of frame, shown with a cut once it plays */
 .hero-yt {
   position: absolute; left: 50%; top: 50%; border: 0; pointer-events: none;
-  width: max(100vw, 177.78vh); height: max(56.25vw, 100vh); transform: translate(-50%, -50%) scale(1.18);
+  width: max(100vw, 177.78vh); height: max(56.25vw, 100vh); transform: translate(-50%, -50%) scale(1.3);
   opacity: 0; transition: opacity 0.1s steps(1);
 }
 .hero-yt.on { opacity: 1; }
@@ -114,13 +102,33 @@ ul { margin: 0; padding: 0; list-style: none; }
 @keyframes flash { 0% { opacity: 0.75; } 66% { opacity: 0.25; } 100% { opacity: 0; } }
 
 /* viewer header bar: timeline name left, zoom + orange timecode right */
+/* the viewer bar: fixed at the top, the only top bar. Showreel dropdown left, orange timecode right */
 .hero-top {
-  position: absolute; left: 0; right: 0; top: var(--nav-h); height: 30px; padding: 0 var(--gutter);
-  display: flex; justify-content: space-between; align-items: center;
-  background: rgba(28, 28, 32, 0.92); border-block: 1px solid #000;
+  position: fixed; left: 0; right: 0; top: 0; z-index: 100; height: var(--nav-h); padding: 0 var(--gutter);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  background: rgba(28, 28, 32, 0.94); border-bottom: 1px solid #000;
   font-family: var(--font-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.02em;
 }
-.vw-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vw-pick { position: relative; min-width: 0; }
+.vw-name {
+  display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 6px; margin-left: -6px; border: 0; border-radius: 3px;
+  background: none; cursor: pointer; font: inherit; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vw-name:hover, .vw-name[aria-expanded='true'] { background: rgba(255, 255, 255, 0.08); }
+.vw-list {
+  position: absolute; left: -6px; top: calc(100% + 4px); min-width: 260px; max-width: calc(100vw - 2 * var(--gutter));
+  margin: 0; padding: 4px; list-style: none; background: #26262b; border: 1px solid #000; border-radius: 4px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.vw-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 10px; border-radius: 3px; cursor: pointer;
+  white-space: nowrap; color: #d6d6da;
+}
+.vw-opt:hover, .vw-opt:focus-visible { background: rgba(255, 255, 255, 0.08); color: #fff; outline: none; }
+.vw-opt[aria-selected='true'] { color: #fff; }
+.vw-opt span::before { content: ""; display: inline-block; width: 16px; }
+.vw-opt[aria-selected="true"] span::before { content: "\2713"; color: var(--accent); }
+.vw-opt small { color: var(--muted); font-size: 0.64rem; }
 .vw-right { flex: none; display: inline-flex; align-items: center; gap: 18px; white-space: nowrap; }
 @media (max-width: 600px) { .vw-right .hud-dim { display: none; } }
 .hud-dim { color: var(--muted); }
@@ -146,6 +154,10 @@ ul { margin: 0; padding: 0; list-style: none; }
 .hero { cursor: pointer; }
 .hero-top, .transport { cursor: auto; }
 .vw-hint { font-size: 0.66rem; }
+/* clean view: a click on the picture hides the text over it; the controls, timeline and scroll keep working */
+.hero-body, .scroll-cue, .hero-shade { transition: opacity calc(var(--frame) * 3) steps(3); }
+.hero.clean .hero-body, .hero.clean .scroll-cue { opacity: 0; pointer-events: none; }
+.hero.clean .hero-shade { opacity: 0.35; }
 @media (max-width: 860px) { .vw-hint { display: none; } }
 @media (max-width: 600px) { .tr-keys { justify-content: flex-start; } }
 
@@ -192,7 +204,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .btn-ghost:hover { border-color: var(--text); background: var(--text); color: var(--bg); }
 
 .scroll-cue {
-  position: absolute; right: var(--gutter); top: calc(var(--nav-h) + 44px);
+  position: absolute; right: var(--gutter); top: calc(var(--nav-h) + 16px);
   font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); text-decoration: none;
 }
 .scroll-cue span::after { content: ' \2193'; display: inline-block; animation: blink 1.2s steps(2, jump-none) infinite; }
@@ -439,7 +451,7 @@ main { overflow-x: clip; }
 .player-backdrop { position: absolute; inset: 0; background: rgba(8, 7, 6, 0.97); }
 /* while a video plays, stop everything moving behind it */
 body.player-open .grain { display: none; }
-body.player-open .ticker-track, body.player-open .logo-dot { animation-play-state: paused; }
+body.player-open .ticker-track { animation-play-state: paused; }
 .player-box { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; }
 .player-bar { width: min(100%, 1100px); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 10px; }
 .player-title { font-family: var(--font-display); font-weight: 800; font-variation-settings: 'wdth' 62; text-transform: uppercase; font-size: clamp(1.3rem, 3vw, 1.9rem); line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

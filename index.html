@@ -23,20 +23,24 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=17">
-  <link rel="stylesheet" href="assets/css/admin.css?v=17">
+  <link rel="stylesheet" href="assets/css/style.css?v=18">
+  <link rel="stylesheet" href="assets/css/admin.css?v=18">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <div class="grain" aria-hidden="true"></div>
 
-  <!-- Top navigation -->
-  <header class="nav" id="nav">
-    <div class="nav-inner">
-      <a class="logo" id="nav-logo" href="#hero" aria-label="Back to top"><span class="logo-dot" aria-hidden="true"></span><span id="nav-logo-text">Portfolio</span></a>
-      <!-- the sections are reached from the timeline at the bottom; only the contact shortcut stays up here -->
-      <a class="nav-cta" href="#contact">Contact</a>
+  <!-- The only top bar: the viewer header, as on the Edit page of the NLE. The name is a dropdown
+       of every showreel (the current one + the ones it replaced); the sections live on the timeline. -->
+  <header class="hero-top" id="viewer-bar">
+    <div class="vw-pick">
+      <button class="vw-name" id="vw-name" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="vw-list">
+        <span id="vw-title">Showreel</span> <span class="hud-dim" aria-hidden="true">&#9662;</span>
+      </button>
+      <ul class="vw-list" id="vw-list" role="listbox" aria-label="Showreels" hidden></ul>
     </div>
+    <span class="vw-hint hud-dim" id="vw-hint" aria-hidden="true">Click the picture to hide the text</span>
+    <span class="vw-right" aria-hidden="true"><span class="hud-dim">Fit &#9662;</span><span class="timecode" id="timecode">01:00:00:00</span></span>
   </header>
 
   <main id="main">
@@ -45,13 +49,6 @@
       <div class="hero-bg" aria-hidden="true">
         <div class="hero-media" id="hero-media"></div>
         <div class="hero-shade"></div>
-      </div>
-
-      <!-- viewer header, as on the Edit page of the NLE -->
-      <div class="hero-top" aria-hidden="true">
-        <span class="vw-name"><span id="vw-title">Showreel</span> <span class="hud-dim">&#9662;</span></span>
-        <span class="vw-hint hud-dim">Click the picture to watch with sound</span>
-        <span class="vw-right"><span class="hud-dim">Fit &#9662;</span><span class="timecode" id="timecode">01:00:00:00</span></span>
       </div>
 
       <div class="hero-body">
@@ -198,7 +195,7 @@
 
   <noscript><p class="noscript">This portfolio needs JavaScript to load its content.</p></noscript>
 
-  <script src="assets/js/site.js?v=17" defer></script>
-  <script src="assets/js/admin.js?v=17" defer></script>
+  <script src="assets/js/site.js?v=18" defer></script>
+  <script src="assets/js/admin.js?v=18" defer></script>
 </body>
 </html>

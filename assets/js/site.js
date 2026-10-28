@@ -147,15 +147,63 @@
     const total = sections.reduce((n, s) => n + (Array.isArray(s.videos) ? s.videos.length : 0), 0);
     const software = str(site.software).trim() || 'DaVinci Resolve';
     $('#hero-meta').textContent = 'Edited in ' + software + '  /  ' + pad2(sections.length) + ' reels  /  ' + pad2(total) + ' clips';
-    $('#vw-title').textContent = (str(site.name) ? str(site.name) + ' - ' : '') + 'Showreel ' + new Date().getFullYear();
+    // Showreel picked in the viewer bar (the current one unless a visitor chose an older one)
+    const reels = showreelList(site);
+    if (!reels.some((r) => r.url === selectedReel)) selectedReel = reels.length ? reels[0].url : '';
+    const picked = reels.find((r) => r.url === selectedReel);
+    $('#vw-title').textContent = (str(site.name) ? str(site.name) + ' - ' : '') + (picked ? picked.title : 'Showreel');
+    renderReelPicker(reels);
 
-    // Showreel: the hero button opens it with sound; the transport drives the muted deck behind the hero
-    const reel = parseVideo(site.showreel);
-    $('#play-showreel').hidden = !str(site.showreel).trim();
+    // the hero button opens the showreel with sound; the transport drives the muted deck behind the hero
+    const reel = parseVideo(selectedReel);
+    $('#play-showreel').hidden = !selectedReel;
     $('#transport').hidden = !(reel.type === 'youtube' || reel.type === 'file');
 
-    renderHeroMedia(reel, str(site.showreel).trim());
+    renderHeroMedia(reel, selectedReel);
     startViewerClock();
+  }
+
+  /* ---------- showreels: the current one + the ones it replaced (the admin archives them on publish) ---------- */
+
+  let selectedReel = '';
+
+  function showreelList(site) {
+    const list = [];
+    const cur = str(site.showreel).trim();
+    if (cur) {
+      const year = str(site.showreelDate).slice(0, 4) || String(new Date().getFullYear());
+      list.push({ url: cur, title: 'Showreel ' + year, latest: true });
+    }
+    (Array.isArray(site.showreelArchive) ? site.showreelArchive : []).forEach((r) => {
+      const url = str(r && r.url).trim();
+      if (url && !list.some((x) => x.url === url)) list.push({ url, title: str(r.title).trim() || 'Showreel' });
+    });
+    return list;
+  }
+
+  function renderReelPicker(reels) {
+    const ul = $('#vw-list');
+    ul.replaceChildren();
+    reels.forEach((r) => {
+      const li = h('li', 'vw-opt', null, { role: 'option', tabindex: '0', 'aria-selected': String(r.url === selectedReel) });
+      li.appendChild(h('span', null, r.title));
+      if (r.latest) li.appendChild(h('small', null, 'latest'));
+      const pick = () => {
+        setReelPicker(false);
+        if (r.url === selectedReel) return;
+        selectedReel = r.url;
+        render();
+      };
+      li.addEventListener('click', pick);
+      li.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      ul.appendChild(li);
+    });
+  }
+
+  function setReelPicker(open) {
+    $('#vw-list').hidden = !open;
+    $('#vw-name').setAttribute('aria-expanded', String(open));
+    if (open) { const sel = $('#vw-list [aria-selected="true"]'); if (sel) sel.focus(); }
   }
 
   const pad2 = (n) => String(n).padStart(2, '0');
@@ -272,15 +320,20 @@
     deck.dir = 0;
     deck.wantPlay = false;
     if (deck.ctl) deck.ctl.pause();
+    // a paused YouTube embed draws its own title and play button: cut back to the still instead
+    // (PLAYING cuts the picture in again)
+    const yt = $('#hero-media .hero-yt');
+    if (yt) yt.classList.remove('on');
   }
-  // reverse playback, stepped (the players have no native reverse)
+  // reverse playback, stepped (the players have no native reverse). The player keeps running and is
+  // stepped back faster than it plays, because a paused YouTube embed shows its own UI.
   function deckReverse() {
     if (!deck.ctl) return;
     stopReverse();
-    deck.ctl.pause();
     deck.dir = -1;
+    deck.ctl.play();
     deck.revTimer = setInterval(() => {
-      const t = deck.ctl.time() - 0.25;
+      const t = deck.ctl.time() - 0.5;
       if (t <= 0) { deck.ctl.seek(0); deckStop(); } else deck.ctl.seek(t);
     }, 250);
   }
@@ -641,7 +694,6 @@
   function renderFooter(site) {
     $('#year').textContent = new Date().getFullYear();
     $('#footer-name').textContent = str(site.name);
-    $('#nav-logo-text').textContent = str(site.name) || 'Portfolio';
   }
 
   /* ---------- scroll reveal ---------- */
@@ -852,7 +904,7 @@
     renderFooter(site);
     setupObservers();
     fitText();
-    renderTimeline([{ label: 'Showreel', target: 'hero', thumb: parseVideo(site.showreel).thumb }].concat(navItems));
+    renderTimeline([{ label: 'Showreel', target: 'hero', thumb: parseVideo(selectedReel).thumb }].concat(navItems));
 
     firstRender = false;
     document.dispatchEvent(new CustomEvent('portfolio:rendered'));
@@ -925,16 +977,20 @@
   function wire() {
     $('#player-close').addEventListener('click', closePlayer);
     $('#player-backdrop').addEventListener('click', closePlayer);
-    const playReel = () => {
+    $('#play-showreel').addEventListener('click', () => {
       const site = (content && content.site) || {};
-      openPlayer({ title: 'Showreel', url: site.showreel, client: str(site.name), vertical: false });
-    };
-    $('#play-showreel').addEventListener('click', playReel);
-    // clicking the picture (or the text over it, which covers most of it on phones) opens the showreel with sound
-    $('#hero').addEventListener('click', (e) => {
-      if (e.target.closest('a, button, .transport, .hero-top') || String(window.getSelection())) return;
-      if (str(content && content.site && content.site.showreel).trim()) playReel();
+      openPlayer({ title: $('#vw-title').textContent || 'Showreel', url: selectedReel, client: str(site.name), vertical: false });
     });
+    // clicking the picture (or the text over it) hides / shows the text; controls, timeline and scroll keep working
+    $('#hero').addEventListener('click', (e) => {
+      if (e.target.closest('a, button, .transport') || String(window.getSelection())) return;
+      const clean = $('#hero').classList.toggle('clean');
+      $('#vw-hint').textContent = clean ? 'Click the picture to show the text' : 'Click the picture to hide the text';
+    });
+
+    // showreel dropdown in the viewer bar
+    $('#vw-name').addEventListener('click', () => setReelPicker($('#vw-list').hidden));
+    document.addEventListener('click', (e) => { if (!e.target.closest('.vw-pick')) setReelPicker(false); });
 
     // transport: reverse, stop, play, loop (on by default)
     $('#tr-rev').addEventListener('click', deckReverse);
@@ -969,6 +1025,7 @@
       }
       if (e.key === 'Escape') {
         if (!player.hidden) closePlayer();
+        else if (!$('#vw-list').hidden) { setReelPicker(false); $('#vw-name').focus(); }
       } else if (e.key === 'Tab' && !player.hidden) {
         // keep focus inside the dialog
         const f = Array.from(player.querySelectorAll('button, iframe, video[controls]'));
@@ -978,11 +1035,6 @@
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
     });
-
-    const nav = $('#nav');
-    const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 24);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
   }
 
   /* ---------- loading ---------- */

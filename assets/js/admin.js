@@ -273,6 +273,7 @@
     ['name', 'role', 'tagline', 'intro', 'showreel', 'about', 'email', 'accent'].forEach((k) => {
       if (typeof s[k] !== 'string') s[k] = s[k] == null ? '' : String(s[k]);
     });
+    s.showreelArchive = Array.isArray(s.showreelArchive) ? s.showreelArchive.filter((x) => x && typeof x === 'object' && x.url) : [];
     s.socials = Array.isArray(s.socials) ? s.socials.filter((x) => x && typeof x === 'object') : [];
     s.socials.forEach((x) => { x.label = String(x.label || ''); x.url = String(x.url || ''); });
     out.sections = Array.isArray(out.sections) ? out.sections.filter((x) => x && typeof x === 'object') : [];
@@ -715,10 +716,26 @@
   }
 
   // ------------------------------------------------------------------ publish
+  // A replaced showreel is kept: it moves to site.showreelArchive (newest first), which the site lists in
+  // the viewer bar's dropdown. Putting an archived one back makes it current again.
+  function archiveReplacedShowreel() {
+    const s = S.content.site;
+    let before = {};
+    try { before = (JSON.parse(S.baseline || '{}').site) || {}; } catch (e) { /* no baseline */ }
+    const oldUrl = String(before.showreel || '').trim();
+    const newUrl = String(s.showreel || '').trim();
+    if (oldUrl === newUrl) return;
+    const today = new Date().toISOString().slice(0, 10);
+    s.showreelArchive = (s.showreelArchive || []).filter((r) => r.url !== newUrl && r.url !== oldUrl);
+    if (oldUrl) s.showreelArchive.unshift({ url: oldUrl, title: 'Showreel ' + String(before.showreelDate || today).slice(0, 7) });
+    s.showreelDate = newUrl ? today : '';
+  }
+
   async function publish() {
     if (S.busy || !S.content) return;
     const problem = prepareForPublish();
     if (problem) return setStatus(problem, 'err');
+    archiveReplacedShowreel();
     S.busy = true;
     setStatus('Se publică…', '');
     const snapshot = ser(S.content);
@@ -932,7 +949,7 @@
       textField('Rol', s, 'role'),
       textField('Slogan (titlul mare)', s, 'tagline'),
       textField('Introducere', s, 'intro', { textarea: true, rows: 3 }),
-      textField('Showreel (link video)', s, 'showreel', { upload: 'video', placeholder: 'https://youtu.be/…' }),
+      textField('Showreel (link video)', s, 'showreel', { upload: 'video', placeholder: 'https://youtu.be/…', hint: 'Când pui un showreel nou și publici, cel vechi rămâne pe site, în lista din bara de sus.' }),
       textField('Despre mine', s, 'about', { textarea: true, rows: 6, hint: 'Rândurile noi devin paragrafe.' }),
       textField('Email', s, 'email', { type: 'email' }),
       h('div', { class: 'adm-field' }, h('span', { class: 'adm-label', text: 'Culoare accent' }), h('div', { class: 'adm-row' }, accentPick, accentText)),
