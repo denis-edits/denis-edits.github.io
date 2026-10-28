@@ -358,6 +358,13 @@ main { overflow-x: clip; }
 .about-text p { font-size: clamp(1.02rem, 1.6vw, 1.2rem); color: rgba(237, 237, 239, 0.82); }
 .about-text p + p { margin-top: 1.1em; }
 .about-text p:first-child { font-size: clamp(1.3rem, 2.4vw, 1.9rem); font-weight: 500; color: var(--text); line-height: 1.35; }
+/* About motion (site.js updateAboutMotion): letters turn up into place, words light up in reading order */
+.about h2 { perspective: 700px; }
+.about h2 .ltr { display: inline-block; transform-origin: 50% 100%; will-change: transform, opacity; }
+.about-text .w { opacity: 0.16; transition: opacity 0.25s ease, color 0.25s ease; }
+.about-text .w.lit { opacity: 1; }
+.about-text .w.now { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .about-text .w { opacity: 1; } }
 .stats { display: flex; gap: clamp(28px, 5vw, 64px); margin: clamp(32px, 5vw, 56px) 0 0; padding-top: 22px; border-top: 1px solid var(--line-strong); }
 .stat { display: flex; flex-direction: column-reverse; }
 .stat dd { margin: 0; font-family: var(--font-display); font-weight: 800; font-variation-settings: 'wdth' 62; font-size: clamp(3rem, 6vw, 5rem); line-height: 0.9; }

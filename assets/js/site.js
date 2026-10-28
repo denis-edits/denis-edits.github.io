@@ -519,17 +519,32 @@
 
   function renderAbout(site, sections) {
     $('#about-name').textContent = [str(site.name), str(site.role)].filter(Boolean).join('  /  ');
+    // the words light up one by one with the scroll (updateAboutMotion), like subtitles cut onto a timeline
     const text = $('#about-text');
     text.replaceChildren();
-    str(site.about).split(/\n+/).map((s) => s.trim()).filter(Boolean)
-      .forEach((p) => text.appendChild(h('p', null, p)));
+    str(site.about).split(/\n+/).map((s) => s.trim()).filter(Boolean).forEach((para) => {
+      const p = h('p');
+      para.split(/\s+/).forEach((word, i) => {
+        if (i) p.appendChild(document.createTextNode(' '));
+        p.appendChild(h('span', 'w', word));
+      });
+      text.appendChild(p);
+    });
+
+    // the title's letters rise and turn into place in 3D with the scroll
+    const title = $('#about-title');
+    const label = str(title.getAttribute('aria-label')) || title.textContent || 'About';
+    title.setAttribute('aria-label', label);
+    title.replaceChildren();
+    [...label].forEach((ch) => title.appendChild(h('span', 'ltr', ch, { 'aria-hidden': 'true' })));
 
     const total = sections.reduce((n, s) => n + (Array.isArray(s.videos) ? s.videos.length : 0), 0);
     const stats = $('#about-stats');
     stats.replaceChildren();
+    delete stats.dataset.counted; // new numbers count up again
     [[String(sections.length).padStart(2, '0'), 'Reels'], [String(total).padStart(2, '0'), 'Clips']].forEach(([n, l]) => {
       const box = h('div', 'stat');
-      box.appendChild(h('dd', 'stat-num', n));
+      box.appendChild(h('dd', 'stat-num', n, { 'data-value': n })); // counts up when it comes into view
       box.appendChild(h('dt', 'stat-label', l));
       stats.appendChild(box);
     });
@@ -722,7 +737,6 @@
   const PX_PER_FRAME = 4;  // page runtime: 4 px of scroll = 1 frame at 24 fps
   let tlClips = [];        // [{ el, link, audio }]
   let tlFrame = -1;
-  let tlCurrent = -1;     // index of the clip under the playhead
 
   // A made-up waveform, the same for the same seed on every load.
   function waveSvg(seed) {
@@ -794,30 +808,29 @@
     updatePlayhead();
   }
 
-  // fromScroll: only a real scroll whooshes into a section; a relayout (images, fonts, resize) just moves the clips
-  function updatePlayhead(fromScroll) {
+  function updatePlayhead() {
     const p = Math.min(1, Math.max(0, window.scrollY / maxScroll()));
     const lane = $('#tl-clips');
     $('#tl-head').style.transform = 'translateX(' + (lane.offsetLeft + p * lane.clientWidth) + 'px)';
     const frame = Math.round(window.scrollY / PX_PER_FRAME);
     if (frame !== tlFrame) { tlFrame = frame; $('#tl-tc').textContent = toTimecode(frame, true); }
-    let current = -1;
     tlClips.forEach(({ link, start, end }, i) => {
       const last = i === tlClips.length - 1;
       if (p >= start && (p < end || (last && p <= end))) {
-        current = i;
         link.setAttribute('aria-current', 'true');
         $('#tl-now').textContent = link.title; // phones: clips are too narrow for their names
       } else link.removeAttribute('aria-current');
     });
-    // entering another section by scrolling: a whoosh (editing sounds on)
-    if (fromScroll && current !== -1 && tlCurrent !== -1 && current !== tlCurrent) sectionWhoosh();
-    if (current !== -1) tlCurrent = current;
   }
 
   let tlRaf = 0;
+  let lastScroll = { y: window.scrollY, t: performance.now() };
   window.addEventListener('scroll', () => {
-    if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(true); updateScrollMotion(); });
+    // scroll speed (px per ms) drives the scrub sound, heard only while the page moves
+    const now = performance.now();
+    scrubSound(Math.abs(window.scrollY - lastScroll.y) / Math.max(1, now - lastScroll.t));
+    lastScroll = { y: window.scrollY, t: now };
+    if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(); updateScrollMotion(); });
   }, { passive: true });
   window.addEventListener('resize', () => requestAnimationFrame(() => { layoutTimeline(); updateScrollMotion(); }));
 
@@ -990,14 +1003,15 @@
 
   /* ---------- editing sound effects: synthesised with Web Audio (no files to load), off until switched on ---------- */
 
-  const sfx = { on: false, ctx: null, noise: null };
+  // scrub: the running scrub chain while sounds are on; scrubStop: timer that fades it when scrolling stops
+  const sfx = { on: false, ctx: null, noise: null, scrub: null, scrubStop: 0 };
 
   function sfxContext() {
     if (!sfx.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       sfx.ctx = new AC();
-      // one second of white noise, reused by every whoosh and cut
+      // one second of white noise, reused by the scrub and the cut
       sfx.noise = sfx.ctx.createBuffer(1, sfx.ctx.sampleRate, sfx.ctx.sampleRate);
       const d = sfx.noise.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -1006,7 +1020,7 @@
     return sfx.ctx;
   }
 
-  // whoosh: band-passed noise swept up and down; cut: a noise click on a low thump; tick: a short blip
+  // cut: a noise click on a low thump; tick: a short blip
   function playSfx(kind) {
     if (!sfx.on) return;
     const ctx = sfxContext();
@@ -1020,15 +1034,7 @@
       node.connect(g).connect(ctx.destination);
     };
     const noise = (dur) => { const s = ctx.createBufferSource(); s.buffer = sfx.noise; s.start(t, Math.random() * 0.5, dur); return s; };
-    if (kind === 'whoosh') {
-      const f = ctx.createBiquadFilter();
-      f.type = 'bandpass'; f.Q.value = 1.4;
-      f.frequency.setValueAtTime(350, t);
-      f.frequency.exponentialRampToValueAtTime(2800, t + 0.16);
-      f.frequency.exponentialRampToValueAtTime(500, t + 0.42);
-      noise(0.45).connect(f);
-      env(f, 0.32, 0.15, 0.28);
-    } else if (kind === 'cut') {
+    if (kind === 'cut') {
       const f = ctx.createBiquadFilter();
       f.type = 'highpass'; f.frequency.value = 2200;
       noise(0.04).connect(f);
@@ -1046,11 +1052,46 @@
     }
   }
 
+  // Scrub: heard only while the page moves, like jogging a timeline. A looped noise band chattered by a
+  // low oscillator (the tape flutter); speed (px per ms of scroll) raises its level, pitch and flutter rate,
+  // and it fades out within a tenth of a second of the page stopping.
+  function scrubSound(speed) {
+    if (!sfx.on) return;
+    const ctx = sfxContext();
+    if (!ctx) return;
+    if (!sfx.scrub) {
+      const src = ctx.createBufferSource();
+      src.buffer = sfx.noise; src.loop = true;
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass'; band.Q.value = 2.2;
+      const flutter = ctx.createGain();
+      flutter.gain.value = 0.5;
+      const lfo = ctx.createOscillator();
+      lfo.type = 'square'; lfo.frequency.value = 12;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.5;
+      lfo.connect(depth).connect(flutter.gain);
+      const level = ctx.createGain();
+      level.gain.value = 0;
+      src.connect(band).connect(flutter).connect(level).connect(ctx.destination);
+      src.start(); lfo.start();
+      sfx.scrub = { band, lfo, level };
+    }
+    const t = ctx.currentTime;
+    const v = Math.min(1, speed / 3);
+    sfx.scrub.level.gain.setTargetAtTime(0.03 + v * 0.2, t, 0.03);
+    sfx.scrub.band.frequency.setTargetAtTime(500 + v * 2500, t, 0.05);
+    sfx.scrub.lfo.frequency.setTargetAtTime(10 + v * 38, t, 0.05);
+    clearTimeout(sfx.scrubStop);
+    sfx.scrubStop = setTimeout(() => sfx.scrub.level.gain.setTargetAtTime(0, sfx.ctx.currentTime, 0.05), 90);
+  }
+
   function setSfx(on) {
     sfx.on = on;
     $('#vw-sound').setAttribute('aria-pressed', String(on));
     $('#vw-sound-text').textContent = on ? 'Sound: On' : 'Sound: Off';
     if (on) playSfx('cut'); // the click that turns it on is the gesture that unlocks audio
+    else if (sfx.scrub) sfx.scrub.level.gain.setTargetAtTime(0, sfx.ctx.currentTime, 0.03);
   }
 
   /* ---------- scroll motion: the reels' cards and titles move in 3D with the scroll (no overlays) ----------
@@ -1073,6 +1114,7 @@
   }
 
   function updateScrollMotion() {
+    updateAboutMotion();
     if (!motionItems.length) return;
     const vh = window.innerHeight, mid = vh / 2;
     const phone = window.innerWidth < 600;
@@ -1088,22 +1130,52 @@
       const c = g.width ? (r.left - g.left + r.width / 2) / g.width : 0.5; // 0 left column .. 1 right
       const side = c * 2 - 1;
       const depth = 0.6 + c * 0.9;
-      const rx = p * (phone ? 14 : 22);
-      const ry = -side * p * (phone ? 8 : 14);
-      const z = -Math.abs(p) * (phone ? 110 : 220);
-      const y = p * depth * (phone ? 40 : 90);
+      const rx = p * (phone ? 20 : 32);
+      const ry = -side * p * (phone ? 12 : 20);
+      const z = -Math.abs(p) * (phone ? 160 : 320);
+      const y = p * depth * (phone ? 60 : 130);
       el.style.transform = 'perspective(1200px) translate3d(0,' + y.toFixed(1) + 'px,' + z.toFixed(1) + 'px) rotateX(' +
         rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
     });
   }
 
-  // entering another section: a whoosh when the editing sounds are on (nothing drawn over the page)
-  let lastCut = 0;
-  function sectionWhoosh() {
-    const now = performance.now();
-    if (now - lastCut < 450) return; // a fast scrub or a long jump crosses several sections: one whoosh
-    lastCut = now;
-    playSfx('whoosh');
+  // About, tied to the scroll: the title's letters rise and turn into place one after another, then the
+  // words light up in reading order (the newest one in the accent colour, like a subtitle cursor); the
+  // stats count up once when they come into view.
+  function updateAboutMotion() {
+    if (reduceMotion) return;
+    const vh = window.innerHeight;
+    const title = $('#about-title');
+    const letters = title.querySelectorAll('.ltr');
+    const tp = Math.max(0, Math.min(1, (vh * 0.95 - title.getBoundingClientRect().top) / (vh * 0.45)));
+    letters.forEach((l, k) => {
+      const q = Math.max(0, Math.min(1, tp * (1 + letters.length * 0.18) - k * 0.18));
+      l.style.transform = 'translateY(' + ((1 - q) * 0.5).toFixed(3) + 'em) rotateX(' + ((1 - q) * -95).toFixed(1) + 'deg)';
+      l.style.opacity = (0.15 + q * 0.85).toFixed(2);
+    });
+    // words: from the text's top reaching 85% of the screen to its bottom reaching 60%
+    const text = $('#about-text');
+    const br = text.getBoundingClientRect();
+    const words = text.querySelectorAll('.w');
+    const lit = Math.round(Math.max(0, Math.min(1, (vh * 0.85 - br.top) / (br.height + vh * 0.25))) * words.length);
+    words.forEach((w, i) => {
+      w.classList.toggle('lit', i < lit);
+      w.classList.toggle('now', i === lit - 1 && lit < words.length);
+    });
+    const stats = $('#about-stats');
+    if (!stats.dataset.counted && stats.getBoundingClientRect().top < vh * 0.9) {
+      stats.dataset.counted = '1';
+      stats.querySelectorAll('.stat-num').forEach((n) => {
+        const to = parseInt(n.dataset.value, 10) || 0;
+        const t0 = performance.now();
+        const step = (ts) => {
+          const k = Math.min(1, (ts - t0) / 900);
+          n.textContent = pad2(Math.round(to * (1 - Math.pow(1 - k, 3))));
+          if (k < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+    }
   }
 
   /* ---------- full view: the text flies off to the sides and the showreel plays with sound ---------- */
@@ -1115,7 +1187,7 @@
     $('#vw-hint').textContent = on ? 'Click again or scroll to bring the text back' : 'Click the picture to watch it full, with sound';
     deck.sound = on;
     if (deck.ctl && deck.ctl.mute) deck.ctl.mute(!on);
-    playSfx('whoosh');
+    playSfx('cut');
     if (on) {
       fullViewY = window.scrollY;
       if (deck.dir !== 1) deckPlay();
