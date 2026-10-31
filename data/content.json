@@ -53,6 +53,106 @@
           "year": "2026",
           "client": "",
           "vertical": true
+        },
+        {
+          "id": "v-1793404881845-powj",
+          "title": "Bicicleta Ruxy",
+          "description": "",
+          "url": "media/1793404881845-bicicleta-ruxy.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404882845-vrgy",
+          "title": "Bicicleta Maria",
+          "description": "",
+          "url": "media/1793404882845-bicicleta-maria.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404883845-uzjx",
+          "title": "Bicicleta Mihai",
+          "description": "",
+          "url": "media/1793404883845-bicicleta-mihai.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404884845-xkcd",
+          "title": "HIF Ruxy",
+          "description": "",
+          "url": "media/1793404884845-hif-ruxy.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404885845-gouo",
+          "title": "MMS Maria",
+          "description": "",
+          "url": "media/1793404885845-mms-maria.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404886845-nvuu",
+          "title": "MMS Mihai",
+          "description": "",
+          "url": "media/1793404886845-mms-mihai.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404887845-etvu",
+          "title": "Roller Maria",
+          "description": "",
+          "url": "media/1793404887845-roller-maria.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404888845-lagv",
+          "title": "All clips Ana",
+          "description": "",
+          "url": "media/1793404888845-all-clips-ana.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404889845-oozl",
+          "title": "Ruxy TikTok",
+          "description": "",
+          "url": "media/1793404889845-ruxy-tiktok.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
+        },
+        {
+          "id": "v-1793404890845-gebs",
+          "title": "Scizzuh LoL edit - Ekko",
+          "description": "",
+          "url": "media/1793404890845-scizzuh-lol-ekko.mp4",
+          "thumbnail": "",
+          "year": "2026",
+          "client": "",
+          "vertical": true
         }
       ]
     },
