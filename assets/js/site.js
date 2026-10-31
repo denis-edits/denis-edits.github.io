@@ -408,13 +408,13 @@
     const title = str(video.title) || 'Untitled';
     const vertical = video.vertical === true;
 
-    const wrap = h('li', 'card-wrap reveal');
-    wrap.style.setProperty('--d', (i % 6) * 70 + 'ms');
+    const wrap = h('li', 'card-wrap car-item');
+    wrap.dataset.idx = String(i);
 
     const card = h('button', 'card' + (vertical ? ' is-vertical' : ''), null, { type: 'button' });
     const unknown = info.type === 'unknown';
     if (!str(video.url).trim()) {
-      card.disabled = true;
+      card.setAttribute('aria-disabled', 'true'); // not disabled: it can still be turned to the front and focused
       card.setAttribute('aria-label', title + ' (no video linked)');
     } else {
       card.setAttribute('aria-label', (unknown ? 'Open ' : 'Play ') + title + (unknown ? ' in a new tab' : ''));
@@ -460,7 +460,9 @@
     if (meta) text.appendChild(h('span', 'card-meta', meta));
     card.appendChild(text);
 
-    card.addEventListener('click', () => openPlayer(video));
+    card.addEventListener('click', () => { if (card.getAttribute('aria-disabled') !== 'true') openPlayer(video); });
+    wrap._video = video;
+    wrap._info = info;
     if (!reduceMotion) {
       card.addEventListener('pointermove', (e) => {
         const r = card.getBoundingClientRect();
@@ -475,6 +477,8 @@
 
   function renderSections(sections, navItems) {
     const root = $('#sections');
+    carousels.forEach(carStopPreview);
+    carousels = [];
     root.replaceChildren();
     const used = new Set();
 
@@ -505,13 +509,393 @@
       head.appendChild(aside);
       el.appendChild(head);
 
-      const allVertical = videos.length > 0 && videos.every((v) => v.vertical === true);
-      const grid = h('ul', 'grid' + (allVertical ? ' grid-vertical' : ''));
-      if (videos.length) videos.forEach((v, i) => grid.appendChild(buildCard(v, i)));
-      else grid.appendChild(h('li', 'grid-empty', 'New work coming soon.'));
-      el.appendChild(grid);
+      if (videos.length) {
+        el.appendChild(buildCarousel(videos, title));
+      } else {
+        const grid = h('ul', 'grid');
+        grid.appendChild(h('li', 'grid-empty', 'New work coming soon.'));
+        el.appendChild(grid);
+      }
 
       root.appendChild(el);
+    });
+  }
+
+  /* ---------- 3D carousel: one per genre ----------
+     The clips sit on a curved row: the front one faces you, the others turn away and recede to both sides.
+     The wheel turns it only while the pointer is over the clips (elsewhere the page scrolls as usual);
+     on phones a sideways swipe turns it and an up/down swipe scrolls the page. The front clip of the
+     carousel nearest the middle of the screen plays muted on its own; a click opens it with sound.
+     With reduced motion it is a plain row that scrolls sideways, every clip reachable, nothing autoplays. */
+
+  let carousels = [];
+  const carState = { paused: false, settleTimer: 0, wheelOutsideAt: 0 };
+  const saveData = !!(navigator.connection && navigator.connection.saveData);
+
+  const mod = (a, n) => ((a % n) + n) % n;
+
+  // a wheel gesture that started on the page keeps scrolling the page when a carousel slides under the pointer
+  window.addEventListener('wheel', (e) => {
+    if (!(e.target.closest && e.target.closest('.car-track'))) carState.wheelOutsideAt = performance.now();
+  }, { passive: true, capture: true });
+
+  function buildCarousel(videos, title) {
+    const n = videos.length;
+    const allVertical = videos.every((v) => v.vertical === true);
+    const flat = reduceMotion;
+    const box = h('div', 'carousel reveal' + (allVertical ? ' car-vertical' : '') + (flat ? ' car-flat' : '') + (n === 1 ? ' car-single' : ''));
+    const stageEl = h('div', 'car-stage');
+    const track = h('ul', 'car-track', null, { 'aria-roledescription': 'carousel', 'aria-label': title + ' clips' });
+    const items = videos.map((v, i) => buildCard(v, i));
+    items.forEach((it) => track.appendChild(it));
+    stageEl.appendChild(track);
+    box.appendChild(stageEl);
+
+    // two clips do not wrap; three or more do, and the card crossing the back fades out on the way
+    const c = { box, stage: stageEl, track, items, n, flat, wrap: n >= 3, pos: 0, target: 0, raf: 0, last: 0, w: 0,
+      wheelAt: 0, wheelD: 0, wheelAcc: 0, stepAt: 0, front: -1, drag: null, dragged: false, touchedAt: 0 };
+
+    if (n > 1) {
+      const bar = h('div', 'car-bar');
+      const prev = h('button', 'car-btn car-prev', null, { type: 'button', 'aria-label': 'Previous clip' });
+      prev.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+      const next = h('button', 'car-btn car-next', null, { type: 'button', 'aria-label': 'Next clip' });
+      next.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+      const count = h('span', 'car-count', null, { 'aria-hidden': 'true' });
+      // read out once the carousel stops, not for every clip it passes
+      const live = h('span', 'sr-only', null, { 'aria-live': 'polite' });
+      bar.append(prev, count, next, live);
+      box.appendChild(bar);
+      Object.assign(c, { prev, next, count, live });
+      prev.addEventListener('click', () => { if (flat) flatStep(c, -1); else carGo(c, c.target - 1); playSfx('tick'); });
+      next.addEventListener('click', () => { if (flat) flatStep(c, 1); else carGo(c, c.target + 1); playSfx('tick'); });
+    }
+
+    if (flat) {
+      items.forEach((it) => it.classList.add('is-front'));
+      let raf = 0;
+      track.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; flatSync(c); }); }, { passive: true });
+    } else if (n > 1) {
+      wireCarousel(c);
+    }
+    carousels.push(c);
+    return box;
+  }
+
+  // reduced motion: the buttons move the row by one clip; the counter follows the row
+  function flatStep(c, dir) {
+    c.track.scrollBy({ left: dir * (c.items[0].offsetWidth + 16), behavior: 'auto' });
+  }
+
+  function flatSync(c) {
+    if (!c.count) return;
+    const t = c.track, step = c.items[0].offsetWidth + 16;
+    const i = Math.max(0, Math.min(c.n - 1, Math.round(t.scrollLeft / step)));
+    setCount(c, i);
+    c.prev.disabled = t.scrollLeft <= 1;
+    c.next.disabled = t.scrollLeft >= t.scrollWidth - t.clientWidth - 1;
+  }
+
+  function setCount(c, i) {
+    if (!c.count) return;
+    const text = pad2(i + 1) + ' / ' + pad2(c.n) + '  ·  ' + (str(c.items[i]._video.title) || 'Untitled');
+    c.count.textContent = text;
+    c.countText = text;
+  }
+
+  // a disabled button that has focus would drop it to the page: hand it to the other one first
+  function setDisabled(btn, other, on) {
+    if (on && document.activeElement === btn) other.focus({ preventScroll: true });
+    btn.disabled = on;
+  }
+
+  // the front clip the carousel is heading to (c.front is the one it is passing)
+  const carTargetIndex = (c) => (c.wrap ? mod(c.target, c.n) : c.target);
+
+  function carGo(c, t) {
+    if (!c.wrap) t = Math.max(0, Math.min(c.n - 1, t));
+    c.target = Math.round(t);
+    c.touchedAt = performance.now();
+    carAnimate(c);
+  }
+
+  const holding = (c) => !!(c.drag && c.drag.lock);
+
+  function carAnimate(c) {
+    if (c.raf) return;
+    c.last = 0;
+    const step = (now) => {
+      c.raf = 0;
+      if (!c.box.isConnected) return;
+      const dt = c.last ? Math.min(64, now - c.last) : 16.7;
+      c.last = now;
+      if (!holding(c)) {
+        c.pos += (c.target - c.pos) * (1 - Math.pow(0.84, dt / 16.7));
+        if (Math.abs(c.target - c.pos) < 0.002) c.pos = c.target;
+      }
+      carLayout(c);
+      if (holding(c) || c.pos !== c.target) c.raf = requestAnimationFrame(step);
+      else {
+        if (c.live && c.live.textContent !== c.countText) c.live.textContent = c.countText;
+        carSettled();
+      }
+    };
+    c.raf = requestAnimationFrame(step);
+  }
+
+  // card width, read once per layout pass (not on every animation frame)
+  function carMeasure() {
+    carousels.forEach((c) => { c.w = c.items[0].offsetWidth || 260; });
+  }
+
+  function carLayout(c) {
+    const { n, items } = c;
+    if (c.flat) { if (c.front < 0) { c.front = 0; flatSync(c); } return; }
+    const front = c.wrap ? mod(Math.round(c.pos), n) : Math.max(0, Math.min(n - 1, Math.round(c.pos)));
+    if (front !== c.front) {
+      carStopPreview(c);
+      c.front = front;
+      setCount(c, front);
+      if (c.prev && !c.wrap) { setDisabled(c.prev, c.next, front === 0); setDisabled(c.next, c.prev, front === n - 1); }
+      items.forEach((it, i) => {
+        it.firstElementChild.tabIndex = i === front ? 0 : -1;
+        it.classList.toggle('is-front', i === front);
+      });
+    }
+    const w = c.w || 260;
+    items.forEach((it, i) => {
+      let d = i - c.pos;
+      if (c.wrap) d = mod(d + n / 2, n) - n / 2;
+      const a = Math.abs(d), s = Math.sign(d);
+      const near = Math.min(a, 1), far = Math.max(0, a - 1);
+      const x = s * (near * w * 0.74 + far * w * 0.44);
+      const z = -Math.min(a, 3.6) * w * 0.62;
+      const ry = -s * (near * 42 + Math.min(far, 3) * 5);
+      let op = a <= 2.6 ? 1 : Math.max(0, 1 - (a - 2.6) / 0.7);
+      // where the ring closes (behind, at ±n/2) a card changes sides: it is faded out there, not seen jumping
+      if (c.wrap) op *= Math.max(0, Math.min(1, (n / 2 - a) / 0.4));
+      it.style.transform = 'translate3d(' + x.toFixed(1) + 'px,0,' + z.toFixed(1) + 'px) rotateY(' + ry.toFixed(2) + 'deg)';
+      it.style.opacity = op.toFixed(2);
+      it.style.visibility = op <= 0.01 ? 'hidden' : '';
+      it.style.zIndex = String(100 - Math.round(a * 10));
+      it.style.setProperty('--dim', Math.min(1, a).toFixed(3));
+    });
+  }
+
+  function carSettled() {
+    clearTimeout(carState.settleTimer);
+    carState.settleTimer = setTimeout(updateCarouselPlayback, 220);
+  }
+
+  function wireCarousel(c) {
+    const { track } = c;
+    const slot = () => (c.w || 260) * 0.74; // px of drag per clip
+
+    // The wheel turns it only over the clips themselves (the track and its turned cards); elsewhere the page
+    // scrolls. One clip per mouse notch. A trackpad push turns it one clip; its momentum tail (falling
+    // deltas) does not keep spinning it, a fresh push (rising deltas) turns it again.
+    track.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) return; // pinch zoom
+      const now = performance.now();
+      if (now - carState.wheelOutsideAt < 250) return; // still the page's scroll gesture
+      const mode = e.deltaMode;
+      const horiz = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      let d = horiz ? e.deltaX : e.deltaY;
+      if (mode === 1) d *= 33; else if (mode === 2) d *= window.innerHeight;
+      if (!d) return;
+      // a carousel that does not wrap lets a vertical wheel scroll the page on once it is at that end
+      // (a sideways one is kept, or the browser would take it as back/forward)
+      const atEnd = !c.wrap && ((d < 0 && c.target <= 0) || (d > 0 && c.target >= c.n - 1));
+      if (atEnd && !horiz) return;
+      e.preventDefault();
+      if (atEnd) return;
+      const ad = Math.abs(d), fresh = now - c.wheelAt > 200;
+      const rising = ad >= Math.abs(c.wheelD) && Math.sign(d) === Math.sign(c.wheelD || d);
+      c.wheelAt = now;
+      let go = false;
+      if (fresh) { c.wheelAcc = 0; go = true; }
+      else if (rising && ad >= 30 && now - c.stepAt > 90) go = true;
+      else if (ad < Math.abs(c.wheelD) * 0.9) c.wheelAcc = 0; // momentum dying away
+      else if (Math.abs(c.wheelAcc += d) >= 140 && now - c.stepAt > 250) go = true; // slow, steady trackpad push
+      c.wheelD = d;
+      if (go) {
+        c.stepAt = now;
+        c.wheelAcc = 0;
+        carGo(c, c.target + Math.sign(d));
+        playSfx('tick');
+      }
+    }, { passive: false });
+
+    // drag (mouse) and sideways swipe (touch); touch-action: pan-y leaves vertical swipes and pinch to the page
+    track.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || holding(c)) return; // a second finger does not take over the drag
+      const now = performance.now();
+      c.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, pos: c.pos, lock: '', vx: 0, lx: e.clientX, lt: now };
+      c.dragged = false;
+      // released anywhere (also off the track, before the drag locked): the press is over
+      const off = (ev) => {
+        if (ev.pointerId !== e.pointerId) return;
+        window.removeEventListener('pointerup', off, true);
+        window.removeEventListener('pointercancel', off, true);
+        end(ev);
+      };
+      window.addEventListener('pointerup', off, true);
+      window.addEventListener('pointercancel', off, true);
+    });
+    track.addEventListener('pointermove', (e) => {
+      const g = c.drag;
+      if (!g || g.id !== e.pointerId) return;
+      if (e.pointerType === 'mouse' && !(e.buttons & 1)) { end(e); return; }
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (!g.lock) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        g.lock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        if (g.lock === 'y') { c.drag = null; return; }
+        try { track.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
+        track.classList.add('is-dragging');
+        carStopPreview(c);
+      }
+      const now = performance.now();
+      if (now > g.lt) { g.vx = (e.clientX - g.lx) / (now - g.lt); g.lx = e.clientX; g.lt = now; }
+      c.dragged = true;
+      let p = g.pos - dx / slot();
+      if (!c.wrap) p = Math.max(-0.35, Math.min(c.n - 1 + 0.35, p));
+      c.pos = p;
+      c.target = p;
+      c.touchedAt = now;
+      carAnimate(c);
+    });
+    function end(e) {
+      const g = c.drag;
+      if (!g || g.id !== e.pointerId) return;
+      c.drag = null;
+      track.classList.remove('is-dragging');
+      if (!g.lock) { carSettled(); return; }
+      // the click that follows a mouse drag comes before this timer; after a swipe no click comes at all
+      setTimeout(() => { c.dragged = false; }, 0);
+      // a flick carries on by its speed
+      const fling = performance.now() - g.lt < 80 ? -g.vx * 120 / slot() : 0;
+      carGo(c, Math.round(c.pos + Math.max(-2, Math.min(2, fling))));
+    }
+    track.addEventListener('pointerup', end);
+    track.addEventListener('pointercancel', end);
+    track.addEventListener('dragstart', (e) => e.preventDefault()); // Firefox would drag the thumbnail image
+
+    // a click right after a drag is not a click; a click on a side clip brings it to the front
+    track.addEventListener('click', (e) => {
+      if (c.dragged) { c.dragged = false; e.preventDefault(); e.stopPropagation(); return; }
+      const it = e.target.closest('.car-item');
+      if (!it) return;
+      const i = Number(it.dataset.idx);
+      if (i !== carTargetIndex(c)) {
+        e.preventDefault();
+        e.stopPropagation();
+        carGoIndex(c, i);
+        playSfx('tick');
+      }
+    }, true);
+
+    // keyboard: arrows turn it, focus follows the front clip
+    track.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      carGo(c, c.target + (e.key === 'ArrowRight' ? 1 : -1));
+      const card = c.items[carTargetIndex(c)].firstElementChild;
+      card.tabIndex = 0;
+      card.focus({ preventScroll: true });
+    });
+  }
+
+  // the shortest way round to clip i
+  function carGoIndex(c, i) {
+    if (!c.wrap) { carGo(c, i); return; }
+    carGo(c, c.target + Math.round(mod(i - c.target + c.n / 2, c.n) - c.n / 2));
+  }
+
+  /* autoplay: only the front clip of one carousel, muted and looped: the one just turned, if it is still in
+     view, otherwise the one nearest the middle of the screen */
+
+  function updateCarouselPlayback() {
+    if (!carousels.length) return;
+    let best = null, bestD = Infinity, touched = null;
+    if (!carState.paused && !reduceMotion && !saveData && !document.hidden) {
+      const vh = window.innerHeight, mid = vh / 2, now = performance.now();
+      carousels.forEach((c) => {
+        if (!c.box.isConnected) return;
+        const r = c.track.getBoundingClientRect();
+        const visible = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+        if (visible < Math.min(r.height, vh) * 0.6) return;
+        if (now - c.touchedAt < 4000 && (!touched || c.touchedAt > touched.touchedAt)) touched = c;
+        const d = Math.abs(r.top + r.height / 2 - mid);
+        if (d < bestD) { bestD = d; best = c; }
+      });
+      if (touched) best = touched;
+    }
+    const still = (c) => !holding(c) && c.pos === c.target;
+    carousels.forEach((c) => { if (c !== best || !still(c)) carStopPreview(c); });
+    if (best && still(best)) carStartPreview(best);
+  }
+
+  function carStartPreview(c) {
+    const it = c.items[c.front];
+    if (!it || it._live || !str(it._video.url).trim()) return;
+    const info = it._info;
+    const media = it.querySelector('.card-media');
+    const before = media.querySelector('.card-play');
+    const undo = () => {
+      if (it._live !== el) return;
+      it._live = null;
+      it.classList.remove('is-live');
+      dropLive(el);
+    };
+    let el;
+    if (info.type === 'file') {
+      // its own element over the still, so stopping it drops the download and leaves the still as it was
+      el = h('video', 'card-live', null, { playsinline: '', 'aria-hidden': 'true' });
+      el.muted = true;
+      el.loop = true;
+      el.playsInline = true;
+      el.preload = 'auto';
+      el.addEventListener('playing', () => { if (it._live === el) it.classList.add('is-live'); });
+      el.addEventListener('error', undo);
+      el.src = info.embedUrl;
+      media.insertBefore(el, before);
+      const p = el.play();
+      if (p && p.catch) p.catch(undo); // autoplay refused (e.g. iPhone low power mode): keep the still
+    } else if (info.type === 'youtube' || info.type === 'vimeo') {
+      const src = info.type === 'youtube'
+        ? 'https://www.youtube-nocookie.com/embed/' + info.id + '?autoplay=1&mute=1&controls=0&loop=1&playlist=' + info.id +
+          '&playsinline=1&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3'
+        : 'https://player.vimeo.com/video/' + info.id + '?background=1&autoplay=1&muted=1&loop=1';
+      el = h('iframe', 'card-live card-live-frame', null, {
+        title: '', tabindex: '-1', 'aria-hidden': 'true', allow: 'autoplay; encrypted-media', referrerpolicy: 'strict-origin-when-cross-origin',
+      });
+      // shown once the player has had time to start, so its loading screen does not show
+      el.addEventListener('load', () => setTimeout(() => {
+        if (it._live !== el) return;
+        el.classList.add('on');
+        it.classList.add('is-live');
+      }, 900));
+      el.src = src;
+      media.insertBefore(el, before);
+    } else {
+      return;
+    }
+    it._live = el;
+  }
+
+  function dropLive(el) {
+    if (el.tagName === 'VIDEO') { el.pause(); el.removeAttribute('src'); el.load(); }
+    el.remove();
+  }
+
+  function carStopPreview(c) {
+    c.items.forEach((it) => {
+      const el = it._live;
+      if (!el) return;
+      it._live = null;
+      it.classList.remove('is-live');
+      dropLive(el);
     });
   }
 
@@ -831,8 +1215,16 @@
     scrubSound(Math.abs(window.scrollY - lastScroll.y) / Math.max(1, now - lastScroll.t));
     lastScroll = { y: window.scrollY, t: now };
     if (!tlRaf) tlRaf = requestAnimationFrame(() => { tlRaf = 0; updatePlayhead(); updateScrollMotion(); });
+    carSettled(); // the front clip nearest the middle starts once the page stops
   }, { passive: true });
-  window.addEventListener('resize', () => requestAnimationFrame(() => { layoutTimeline(); updateScrollMotion(); }));
+  window.addEventListener('resize', () => requestAnimationFrame(() => {
+    carMeasure();
+    carousels.forEach(carLayout);
+    layoutTimeline();
+    updateScrollMotion();
+    carSettled();
+  }));
+  document.addEventListener('visibilitychange', updateCarouselPlayback);
 
   // Scrubbing: drag the playhead, or press/drag on the ruler, and the page scrolls with it (mouse and touch).
   function scrubTo(clientX) {
@@ -916,6 +1308,8 @@
     const navItems = [];
     renderHero(site, sections);
     renderSections(sections, navItems);
+    carMeasure(); // now that the cards are on the page and have a width
+    carousels.forEach(carLayout);
     renderTestimonials(content, navItems);
     navItems.push({ label: 'About', target: 'about' }, { label: 'Contact', target: 'contact' });
     renderTicker(sections.map((s) => str(s.title)).filter(Boolean));
@@ -929,6 +1323,7 @@
     fitText();
     renderTimeline([{ label: 'Showreel', target: 'hero', thumb: parseVideo(selectedReel).thumb }].concat(navItems));
     setupScrollMotion();
+    carSettled();
 
     // a shared link to a section (#genre-commercials, #contact): the sections exist only now, so jump here
     if (firstRender && location.hash.length > 1) {
@@ -980,6 +1375,8 @@
     $('#player-title').textContent = title;
     $('#player-meta').textContent = [str(video.year), str(video.client), str(video.description)].filter(Boolean).join('  ·  ');
     // the muted deck behind the hero waits while something plays with sound
+    carState.paused = true;
+    carousels.forEach(carStopPreview);
     deck.resume = deck.dir === 1;
     if (deck.dir !== 0) deckStop();
     player.hidden = false;
@@ -997,6 +1394,8 @@
     player.hidden = true;
     document.body.classList.remove('player-open');
     if (deck.resume) { deck.resume = false; deckPlay(); }
+    carState.paused = false;
+    carSettled();
     if (lastFocus && lastFocus.focus) lastFocus.focus();
     lastFocus = null;
   }
@@ -1110,9 +1509,10 @@
     const titles = [];
     document.querySelectorAll('.genre').forEach((sec) => {
       const title = sec.querySelector('.genre-title');
-      const cards = [...sec.querySelectorAll('.card-wrap')].map((li) => li.firstElementChild);
-      if (title) titles.push({ box: title.parentElement, el: title, kind: 'title', sec, cards });
-      cards.forEach((card) => motionItems.push({ box: card.parentElement, el: card, kind: 'card' }));
+      // the carousel tilts as a whole; its own clips are turned by carLayout
+      const tracks = [...sec.querySelectorAll('.car-track')];
+      if (title) titles.push({ box: title.parentElement, el: title, kind: 'title', sec, cards: tracks });
+      tracks.forEach((track) => motionItems.push({ box: track.parentElement, el: track, kind: 'card' }));
     });
     motionItems.push(...titles); // after the cards: a title reads where its cards were just drawn
     updateScrollMotion();
@@ -1163,17 +1563,13 @@
       }
       if (r.bottom < -vh * 0.5 || r.top > vh * 1.5) return;
       const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - mid) / mid)); // -1 above, 0 middle, 1 below
-      const g = box.parentElement.getBoundingClientRect();
-      const c = g.width ? (r.left - g.left + r.width / 2) / g.width : 0.5; // 0 left column .. 1 right
-      const side = c * 2 - 1;
-      const depth = 0.6 + c * 0.9;
-      const rx = p * (phone ? 20 : 32);
-      const ry = -side * p * (phone ? 12 : 20);
-      const z = -Math.abs(p) * (phone ? 160 : 320);
-      // they rise less above the middle, so they do not catch up with their title at the top
-      const y = p * depth * (phone ? 60 : 130) * (p < 0 ? 0.4 : 1);
-      el.style.transform = 'perspective(1200px) translate3d(0,' + y.toFixed(1) + 'px,' + z.toFixed(1) + 'px) rotateX(' +
-        rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+      // the whole carousel: tilted back and lower below the middle, flat at the middle, tilted away above
+      // (the stage holds the perspective, so the clips' own turn and this tilt add up)
+      const rx = p * (phone ? 16 : 24);
+      const z = -Math.abs(p) * (phone ? 120 : 240);
+      // it rises less above the middle, so it does not catch up with its title at the top
+      const y = p * (phone ? 50 : 110) * (p < 0 ? 0.4 : 1);
+      el.style.transform = 'translate3d(0,' + y.toFixed(1) + 'px,' + z.toFixed(1) + 'px) rotateX(' + rx.toFixed(2) + 'deg)';
     });
   }
 
