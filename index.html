@@ -2,6 +2,8 @@
 <html lang="en" class="fonts-wait">
 <head>
   <meta charset="utf-8">
+  <!-- only our own scripts (plus YouTube's player API) may run; the page talks only to GitHub (admin) and Web3Forms (contact) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.youtube.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://drive.google.com; connect-src 'self' https://api.github.com https://api.web3forms.com; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Denis | Video Editor</title>
   <meta name="description" content="Video editing portfolio of Denis: music videos, commercials, reels and short films. Watch the showreel and get in touch.">
