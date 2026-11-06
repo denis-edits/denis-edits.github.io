@@ -42,7 +42,8 @@
           "thumbnail": "",
           "year": "2026",
           "client": "",
-          "vertical": true
+          "vertical": true,
+          "hidden": true
         },
         {
           "id": "v-1793161074844-didg",
@@ -102,7 +103,8 @@
           "thumbnail": "",
           "year": "2026",
           "client": "",
-          "vertical": true
+          "vertical": true,
+          "hidden": true
         },
         {
           "id": "v-1793404886845-nvuu",
@@ -142,7 +144,8 @@
           "thumbnail": "",
           "year": "2026",
           "client": "",
-          "vertical": true
+          "vertical": true,
+          "hidden": true
         },
         {
           "id": "v-1793404890845-gebs",
