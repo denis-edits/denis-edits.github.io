@@ -157,6 +157,7 @@
     // the hero button opens the showreel with sound; the transport drives the muted deck behind the hero
     const reel = parseVideo(selectedReel);
     $('#play-showreel').hidden = !selectedReel;
+    $('#vw-hint').style.visibility = selectedReel ? '' : 'hidden';
     $('#transport').hidden = !(reel.type === 'youtube' || reel.type === 'file');
 
     renderHeroMedia(reel, selectedReel);
@@ -241,6 +242,10 @@
     media.replaceChildren();
     stopReverse();
     Object.assign(deck, { ctl: null, reel, dir: 0, wantPlay: false, mounted: false, sound: false });
+    if (!key) {
+      media.appendChild(h('div', 'hero-soon', 'Showreel coming soon'));
+      return;
+    }
     // phones and reduced motion: a still until someone presses play
     const auto = !reduceMotion && window.matchMedia('(min-width: 861px) and (pointer: fine)').matches;
 
@@ -1639,7 +1644,7 @@
     });
     // clicking the picture (or the text over it) toggles full view; scrolling away from it ends it and stops the reel
     $('#hero').addEventListener('click', (e) => {
-      if (e.target.closest('a, button, .transport') || String(window.getSelection())) return;
+      if (!selectedReel || e.target.closest('a, button, .transport') || String(window.getSelection())) return;
       setFullView(!$('#hero').classList.contains('clean'));
     });
     window.addEventListener('scroll', () => {
