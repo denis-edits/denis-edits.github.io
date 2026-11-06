@@ -134,7 +134,8 @@
           "thumbnail": "",
           "year": "2026",
           "client": "",
-          "vertical": true
+          "vertical": true,
+          "hidden": true
         },
         {
           "id": "v-1793404889845-oozl",
@@ -155,7 +156,8 @@
           "thumbnail": "",
           "year": "2026",
           "client": "",
-          "vertical": true
+          "vertical": true,
+          "hidden": true
         }
       ]
     },
